@@ -1,7 +1,4 @@
--- // ☢️ GRANZ HUB v10.2 - ULTIMATE EDITION (FULLY FIXED)
--- // АнтиРагдол + NoAnimations + InfJump
--- Xeno | Полная версия
-
+-- // ☢️ GRANZ HUB v10.3 - STEAL A BRAINROT EDITION
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -10,7 +7,6 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- ==================== НАСТРОЙКИ ====================
 local Settings = {
     InfJumpEnabled = false,
     AntiRagdollEnabled = false,
@@ -22,8 +18,6 @@ local Settings = {
 
 local lastJump = 0
 local char, hum, root, animator
-
--- Хранилище
 local ragdollConnections = {}
 local animConnections = {}
 local heartbeatConnection = nil
@@ -31,22 +25,16 @@ local trackedAllTracks = {}
 local savedMotorData = {}
 local fakeMotors = {}
 
--- ==================== УТИЛИТЫ ====================
 local function safeGet(obj, name)
-    local ok, result = pcall(function()
-        return obj:FindFirstChild(name)
-    end)
+    local ok, result = pcall(function() return obj:FindFirstChild(name) end)
     return ok and result or nil
 end
 
 local function safeGetClass(obj, class)
-    local ok, result = pcall(function()
-        return obj:FindFirstChildOfClass(class)
-    end)
+    local ok, result = pcall(function() return obj:FindFirstChildOfClass(class) end)
     return ok and result or nil
 end
 
--- ==================== ОБНОВЛЕНИЕ ПЕРСОНАЖА ====================
 local function refreshChar()
     char = player.Character
     if not char then return false end
@@ -58,29 +46,20 @@ end
 
 refreshChar()
 
--- ==================== МОДУЛЬ 1: БЕСКОНЕЧНЫЕ ПРЫЖКИ ====================
+-- ==================== INFINITE JUMP ====================
 local function safeJump()
     if not Settings.InfJumpEnabled then return end
     if not (hum and root) then return end
     if hum.Health <= 0 then return end
-
     local now = tick()
     if now - lastJump < Settings.Cooldown then return end
     lastJump = now
-
     local currentVel = root.AssemblyLinearVelocity
     local newY = Settings.JumpPower
-
     if currentVel.Y < Settings.MaxFallSpeed then
         newY = Settings.JumpPower + math.abs(currentVel.Y) * 0.3
     end
-
-    root.AssemblyLinearVelocity = Vector3.new(
-        currentVel.X * 0.9,
-        newY,
-        currentVel.Z * 0.9
-    )
-
+    root.AssemblyLinearVelocity = Vector3.new(currentVel.X * 0.9, newY, currentVel.Z * 0.9)
     task.delay(0.05, function()
         if root and root.Parent and Settings.InfJumpEnabled then
             local v = root.AssemblyLinearVelocity
@@ -91,28 +70,35 @@ local function safeJump()
     end)
 end
 
-local function onSpacePressed()
-    if not Settings.InfJumpEnabled then return end
-    if not (hum and root) then return end
-
-    local state = hum:GetState()
-    local isAir = state == Enum.HumanoidStateType.Freefall
-        or state == Enum.HumanoidStateType.Jumping
-        or state == Enum.HumanoidStateType.FallingDown
-
-    if isAir then
-        safeJump()
-    end
-end
-
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Space then
-        onSpacePressed()
+        if not (hum and root) then return end
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Freefall
+            or state == Enum.HumanoidStateType.Jumping
+            or state == Enum.HumanoidStateType.FallingDown then
+            safeJump()
+        end
     end
 end)
 
--- ==================== МОДУЛЬ 2: ANTI-RAGDOLL (УНИВЕРСАЛЬНЫЙ) ====================
+-- ==================== ANTI-RAGDOLL (STEAL A BRAINROT) ====================
+--[[
+    В Steal a Brainrot рагдолл системы:
+    1. Ставит PlatformStand = true
+    2. Удаляет Motor6D из частей тела
+    3. Добавляет BallSocketConstraint между частями
+    4. Иногда добавляет теги через CollectionService
+    
+    Решение:
+    - Сохраняем все Motor6D с их CFrame данными
+    - При удалении - мгновенно пересоздаём
+    - При добавлении BallSocket - уничтожаем
+    - PlatformStand постоянно сбрасываем
+    - Каждый кадр проверяем и восстанавливаем
+]]
+
 local ragdollStates = {
     Enum.HumanoidStateType.Ragdoll,
     Enum.HumanoidStateType.FallingDown,
@@ -126,12 +112,13 @@ local function isRagdollState(state)
     return false
 end
 
+-- Сохраняем Motor6D ДО рагдолла
 local function saveAllMotors()
     savedMotorData = {}
     if not char then return end
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("Motor6D") then
-            savedMotorData[#savedMotorData + 1] = {
+            table.insert(savedMotorData, {
                 ref = v,
                 Name = v.Name,
                 Parent = v.Parent,
@@ -139,20 +126,32 @@ local function saveAllMotors()
                 Part1 = v.Part1,
                 C0 = v.C0,
                 C1 = v.C1,
-            }
+            })
         end
     end
 end
 
+-- Восстанавливаем Motor6D
 local function restoreAllMotors()
     if not char then return end
-
     for _, data in ipairs(savedMotorData) do
         pcall(function()
             if data.ref and data.ref.Parent then
+                -- Мотор жив - просто включаем
                 data.ref.Enabled = true
             else
-                if data.Parent and data.Parent.Parent then
+                -- Мотор удалён - пересоздаём
+                if data.Parent and data.Parent.Parent
+                    and data.Part0 and data.Part0.Parent
+                    and data.Part1 and data.Part1.Parent then
+                    
+                    -- Проверяем что такого мотора ещё нет
+                    local existing = data.Parent:FindFirstChild(data.Name)
+                    if existing and existing:IsA("Motor6D") then
+                        existing.Enabled = true
+                        return
+                    end
+                    
                     local m = Instance.new("Motor6D")
                     m.Name = data.Name
                     m.Part0 = data.Part0
@@ -160,14 +159,15 @@ local function restoreAllMotors()
                     m.C0 = data.C0
                     m.C1 = data.C1
                     m.Parent = data.Parent
-                    fakeMotors[#fakeMotors + 1] = m
+                    table.insert(fakeMotors, m)
                 end
             end
         end)
     end
 end
 
-local function nukeRagdollConstraints()
+-- Убиваем все рагдолл констрейнты
+local function nukeConstraints()
     if not char then return end
     for _, v in ipairs(char:GetDescendants()) do
         pcall(function()
@@ -180,7 +180,8 @@ local function nukeRagdollConstraints()
     end
 end
 
-local function unfreezeCharacter()
+-- Размораживаем персонажа
+local function unfreezeChar()
     if not char then return end
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -191,40 +192,56 @@ local function unfreezeCharacter()
     end
 end
 
+-- Главный выход из рагдолла
 local function escapeRagdoll()
     if not (hum and char and root) then return end
     if hum.Health <= 0 then return end
 
+    -- Шаг 1: убираем PlatformStand
     pcall(function() hum.PlatformStand = false end)
 
+    -- Шаг 2: восстанавливаем моторы
     restoreAllMotors()
-    nukeRagdollConstraints()
-    unfreezeCharacter()
 
+    -- Шаг 3: убиваем констрейнты
+    nukeConstraints()
+
+    -- Шаг 4: размораживаем
+    unfreezeChar()
+
+    -- Шаг 5: меняем состояние
     pcall(function()
         hum:ChangeState(Enum.HumanoidStateType.GettingUp)
     end)
 
+    -- Шаг 6: через 50мс форсим Running
     task.delay(0.05, function()
+        if not Settings.AntiRagdollEnabled then return end
         pcall(function()
             if hum and hum.Health > 0 then
                 hum.PlatformStand = false
+                restoreAllMotors()
                 hum:ChangeState(Enum.HumanoidStateType.Running)
             end
         end)
     end)
 
-    task.delay(0.15, function()
+    -- Шаг 7: страховка через 200мс
+    task.delay(0.2, function()
+        if not Settings.AntiRagdollEnabled then return end
         pcall(function()
             if hum and hum.Health > 0 then
                 hum.PlatformStand = false
+                restoreAllMotors()
+                nukeConstraints()
                 local state = hum:GetState()
-                if isRagdollState(state) then
-                    restoreAllMotors()
+                if isRagdollState(state) or state == Enum.HumanoidStateType.PlatformStanding then
                     hum:ChangeState(Enum.HumanoidStateType.GettingUp)
                     task.delay(0.05, function()
                         pcall(function()
-                            hum:ChangeState(Enum.HumanoidStateType.Running)
+                            if hum then
+                                hum:ChangeState(Enum.HumanoidStateType.Running)
+                            end
                         end)
                     end)
                 end
@@ -238,14 +255,16 @@ local function startAntiRagdoll()
 
     saveAllMotors()
 
+    -- Слушаем StateChanged
     local c1 = hum.StateChanged:Connect(function(_, new)
         if not Settings.AntiRagdollEnabled then return end
-        if isRagdollState(new) then
+        if isRagdollState(new) or new == Enum.HumanoidStateType.PlatformStanding then
             task.defer(escapeRagdoll)
         end
     end)
     table.insert(ragdollConnections, c1)
 
+    -- Слушаем PlatformStand
     local c2 = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
         if not Settings.AntiRagdollEnabled then return end
         if hum.PlatformStand then
@@ -257,6 +276,7 @@ local function startAntiRagdoll()
     end)
     table.insert(ragdollConnections, c2)
 
+    -- Перехватываем добавление констрейнтов
     local c3 = char.DescendantAdded:Connect(function(v)
         if not Settings.AntiRagdollEnabled then return end
         task.defer(function()
@@ -265,15 +285,19 @@ local function startAntiRagdoll()
                     or v:IsA("HingeConstraint")
                     or v:IsA("NoCollisionConstraint") then
                     v:Destroy()
+                    -- После уничтожения констрейнта восстанавливаем моторы
+                    task.defer(restoreAllMotors)
                 end
             end)
         end)
     end)
     table.insert(ragdollConnections, c3)
 
+    -- Перехватываем УДАЛЕНИЕ Motor6D
     local c4 = char.DescendantRemoving:Connect(function(v)
         if not Settings.AntiRagdollEnabled then return end
         if v:IsA("Motor6D") then
+            -- Сохраняем данные пока объект ещё жив
             local data = {
                 Name = v.Name,
                 Parent = v.Parent,
@@ -282,10 +306,17 @@ local function startAntiRagdoll()
                 C0 = v.C0,
                 C1 = v.C1,
             }
-            task.delay(0.05, function()
+            task.delay(0.02, function()
+                if not Settings.AntiRagdollEnabled then return end
                 pcall(function()
-                    if not Settings.AntiRagdollEnabled then return end
-                    if data.Parent and data.Parent.Parent then
+                    if data.Parent and data.Parent.Parent
+                        and data.Part0 and data.Part0.Parent
+                        and data.Part1 and data.Part1.Parent then
+                        local existing = data.Parent:FindFirstChild(data.Name)
+                        if existing and existing:IsA("Motor6D") then
+                            existing.Enabled = true
+                            return
+                        end
                         local m = Instance.new("Motor6D")
                         m.Name = data.Name
                         m.Part0 = data.Part0
@@ -293,7 +324,7 @@ local function startAntiRagdoll()
                         m.C0 = data.C0
                         m.C1 = data.C1
                         m.Parent = data.Parent
-                        fakeMotors[#fakeMotors + 1] = m
+                        table.insert(fakeMotors, m)
                     end
                 end)
             end)
@@ -301,6 +332,7 @@ local function startAntiRagdoll()
     end)
     table.insert(ragdollConnections, c4)
 
+    -- Следим за Motor6D.Enabled
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("Motor6D") then
             local c = v:GetPropertyChangedSignal("Enabled"):Connect(function()
@@ -323,7 +355,6 @@ local function stopAntiRagdoll()
         pcall(function() c:Disconnect() end)
     end
     ragdollConnections = {}
-
     for _, m in ipairs(fakeMotors) do
         pcall(function()
             if m and m.Parent then m:Destroy() end
@@ -333,12 +364,11 @@ local function stopAntiRagdoll()
     savedMotorData = {}
 end
 
--- ==================== МОДУЛЬ 3: NO ANIMATIONS ====================
+-- ==================== NO ANIMATIONS ====================
 local function hookAnimationTrackAll(track)
     if not track then return end
     if trackedAllTracks[track] then return end
     trackedAllTracks[track] = true
-
     local conn = track:GetPropertyChangedSignal("IsPlaying"):Connect(function()
         if not Settings.NoAnimationsEnabled then return end
         if track.IsPlaying then
@@ -351,7 +381,6 @@ local function hookAnimationTrackAll(track)
         end
     end)
     table.insert(animConnections, conn)
-
     if Settings.NoAnimationsEnabled and track.IsPlaying then
         pcall(function()
             track:AdjustSpeed(0)
@@ -374,7 +403,6 @@ end
 
 local function hookAnimator()
     if not animator then return end
-
     pcall(function()
         local conn = animator.AnimationPlayed:Connect(function(track)
             hookAnimationTrackAll(track)
@@ -389,7 +417,6 @@ local function hookAnimator()
         end)
         table.insert(animConnections, conn)
     end)
-
     if hum then
         local events = {"Running", "Jumping", "Climbing", "Swimming", "FreeFalling"}
         for _, evName in ipairs(events) do
@@ -401,14 +428,12 @@ local function hookAnimator()
                 table.insert(animConnections, conn)
             end)
         end
-
         local conn = hum.StateChanged:Connect(function()
             if not Settings.NoAnimationsEnabled then return end
             task.defer(suppressAllTracks)
         end)
         table.insert(animConnections, conn)
     end
-
     pcall(function()
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             hookAnimationTrackAll(track)
@@ -416,16 +441,13 @@ local function hookAnimator()
     end)
 end
 
-local function startNoAnimations()
-    hookAnimator()
-end
+local function startNoAnimations() hookAnimator() end
 
 local function stopNoAnimations()
     for _, conn in ipairs(animConnections) do
         pcall(function() conn:Disconnect() end)
     end
     animConnections = {}
-
     for track, _ in pairs(trackedAllTracks) do
         pcall(function()
             if track and track.IsPlaying then
@@ -437,7 +459,9 @@ local function stopNoAnimations()
     trackedAllTracks = {}
 end
 
--- ==================== ГЛАВНЫЙ HEARTBEAT ====================
+-- ==================== HEARTBEAT ====================
+local lastEscape = 0
+
 heartbeatConnection = RunService.Heartbeat:Connect(function()
     if not (char and char.Parent) then
         refreshChar()
@@ -446,16 +470,22 @@ heartbeatConnection = RunService.Heartbeat:Connect(function()
     if not (hum and hum.Health > 0) then return end
 
     if Settings.AntiRagdollEnabled then
+        -- Постоянно сбрасываем PlatformStand
         if hum.PlatformStand then
             pcall(function() hum.PlatformStand = false end)
-            escapeRagdoll()
         end
 
+        -- Проверяем состояние каждые 0.1 секунды
+        local now = tick()
         local state = hum:GetState()
-        if isRagdollState(state) then
-            escapeRagdoll()
+        if isRagdollState(state) or state == Enum.HumanoidStateType.PlatformStanding then
+            if now - lastEscape > 0.1 then
+                lastEscape = now
+                escapeRagdoll()
+            end
         end
 
+        -- Восстанавливаем отключённые Motor6D каждый кадр
         for _, v in ipairs(char:GetDescendants()) do
             if v:IsA("Motor6D") and not v.Enabled then
                 pcall(function() v.Enabled = true end)
@@ -468,17 +498,15 @@ heartbeatConnection = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ==================== ОБРАБОТКА РЕСПАВНА ====================
-player.CharacterAdded:Connect(function(newChar)
+-- ==================== РЕСПАВН ====================
+player.CharacterAdded:Connect(function()
     task.wait(0.5)
     refreshChar()
     task.wait(0.3)
-
     if Settings.AntiRagdollEnabled then
         stopAntiRagdoll()
         startAntiRagdoll()
     end
-
     if Settings.NoAnimationsEnabled then
         stopNoAnimations()
         task.wait(0.2)
@@ -564,12 +592,12 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local Version = Instance.new("TextLabel")
-Version.Size = UDim2.new(0, 50, 0, 20)
-Version.Position = UDim2.new(1, -100, 0.5, -10)
+Version.Size = UDim2.new(0, 60, 0, 20)
+Version.Position = UDim2.new(1, -105, 0.5, -10)
 Version.BackgroundTransparency = 1
-Version.Text = "v10.2"
+Version.Text = "v10.3 SAB"
 Version.TextColor3 = Colors.accent
-Version.TextSize = 12
+Version.TextSize = 11
 Version.Font = Enum.Font.GothamBold
 Version.Parent = Header
 
@@ -691,22 +719,11 @@ local function createModuleButton(name, description, order, onColor)
 end
 
 local JumpToggle, JumpVisual = createModuleButton(
-    "⚡ Infinite Jump",
-    "Бесконечные прыжки в воздухе",
-    1, Colors.btnOn
-)
-
+    "⚡ Infinite Jump", "Бесконечные прыжки в воздухе", 1, Colors.btnOn)
 local RagdollToggle, RagdollVisual = createModuleButton(
-    "🛡️ Anti-Ragdoll",
-    "Мгновенный выход из рагдолла",
-    2, Colors.btnOnAlt1
-)
-
+    "🛡️ Anti-Ragdoll", "Выход из рагдолла (Steal a Brainrot)", 2, Colors.btnOnAlt1)
 local AnimToggle, AnimVisual = createModuleButton(
-    "👻 No Animations",
-    "Отключает все анимации персонажа",
-    3, Colors.btnOnAlt2
-)
+    "👻 No Animations", "Отключает все анимации персонажа", 3, Colors.btnOnAlt2)
 
 local StatusBar = Instance.new("Frame")
 StatusBar.Size = UDim2.new(1, 0, 0, 30)
@@ -819,8 +836,4 @@ task.spawn(function()
 end)
 
 updateStatus()
-
-print("🔥 GRANZ HUB v10.2 LOADED")
-print("🔥 Anti-Ragdoll: УНИВЕРСАЛЬНЫЙ РЕАКТИВНЫЙ")
-print("🔥 Infinite Jump: АКТИВЕН")
-print("🔥 No Animations: АКТИВЕН")
+print("🔥 GRANZ HUB v10.3 | Steal a Brainrot Edition | LOADED")
