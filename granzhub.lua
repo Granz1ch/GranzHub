@@ -1,6 +1,6 @@
--- // ☢️ NUCLEAR BRAINROT GUI v10.0 - ULTIMATE EDITION
--- // АнтиРагдол + NoWalkAnim + InfJump | Невидимо для античитов
--- Xeno | Полная версия
+-- // ☢️ GRANZ HUB v10.1 - ULTIMATE EDITION (FIXED)
+-- // АнтиРагдол + NoAnimations + InfJump
+-- Xeno | Полная версия | Anti-Ragdoll FIXED
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -14,7 +14,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 local Settings = {
     InfJumpEnabled = false,
     AntiRagdollEnabled = false,
-    NoWalkAnimEnabled = false,
+    NoAnimationsEnabled = false,
     JumpPower = 50,
     Cooldown = 0.12,
     MaxFallSpeed = -60,
@@ -23,24 +23,16 @@ local Settings = {
 local lastJump = 0
 local char, hum, root, animator
 
--- Хранилище для восстановления
+-- Хранилище
 local ragdollConnections = {}
 local animConnections = {}
-local originalAnimPlay = nil
-local blockedAnimIDs = {}
 local heartbeatConnection = nil
+local trackedAllTracks = {}
 
--- ==================== УТИЛИТЫ (МАСКИРОВКА) ====================
--- Генерируем "мусорные" имена переменных чтобы обфусцировать память
-local function _rnd()
-    local s = ""
-    for i = 1, math.random(6, 12) do
-        s = s .. string.char(math.random(97, 122))
-    end
-    return s
-end
+-- Сохранённые Motor6D данные для восстановления
+local savedMotors = {}
 
--- Тихая проверка без ошибок
+-- ==================== УТИЛИТЫ ====================
 local function safeGet(obj, name)
     local ok, result = pcall(function()
         return obj:FindFirstChild(name)
@@ -62,39 +54,34 @@ local function refreshChar()
     hum = safeGetClass(char, "Humanoid")
     root = safeGet(char, "HumanoidRootPart")
     animator = hum and safeGetClass(hum, "Animator")
-    
-    if hum then
-        hum.PlatformStand = false
-        hum.AutoRotate = true
-    end
     return hum ~= nil and root ~= nil
 end
 
 refreshChar()
 
--- ==================== МОДУЛЬ 1: БЕЗОПАСНЫЕ БЕСКОНЕЧНЫЕ ПРЫЖКИ ====================
+-- ==================== МОДУЛЬ 1: БЕСКОНЕЧНЫЕ ПРЫЖКИ ====================
 local function safeJump()
     if not Settings.InfJumpEnabled then return end
     if not (hum and root) then return end
     if hum.Health <= 0 then return end
-    
+
     local now = tick()
     if now - lastJump < Settings.Cooldown then return end
     lastJump = now
-    
+
     local currentVel = root.AssemblyLinearVelocity
     local newY = Settings.JumpPower
-    
+
     if currentVel.Y < Settings.MaxFallSpeed then
         newY = Settings.JumpPower + math.abs(currentVel.Y) * 0.3
     end
-    
+
     root.AssemblyLinearVelocity = Vector3.new(
         currentVel.X * 0.9,
         newY,
         currentVel.Z * 0.9
     )
-    
+
     task.delay(0.05, function()
         if root and root.Parent and Settings.InfJumpEnabled then
             local v = root.AssemblyLinearVelocity
@@ -108,12 +95,12 @@ end
 local function onSpacePressed()
     if not Settings.InfJumpEnabled then return end
     if not (hum and root) then return end
-    
+
     local state = hum:GetState()
-    local isAir = state == Enum.HumanoidStateType.Freefall 
-               or state == Enum.HumanoidStateType.Jumping
-               or state == Enum.HumanoidStateType.FallingDown
-    
+    local isAir = state == Enum.HumanoidStateType.Freefall
+        or state == Enum.HumanoidStateType.Jumping
+        or state == Enum.HumanoidStateType.FallingDown
+
     if isAir then
         safeJump()
     end
@@ -126,17 +113,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- ==================== МОДУЛЬ 2: АНТИ-РАГДОЛЛ ====================
+-- ==================== МОДУЛЬ 2: ANTI-RAGDOLL (ПОЛНОСТЬЮ ПЕРЕРАБОТАН) ====================
 --[[
-    ПРИНЦИП: 
-    - Постоянно снимаем состояния Ragdoll/FallingDown/Physics
-    - HumanoidRootPart "якорится" через постоянное исправление состояния
-    - Все BallSocketConstraint / HingeConstraint что создаются для ragdoll - 
-      мгновенно отключаются
-    - Motor6D которые выключаются при ragdoll - включаем обратно
-    - Это выглядит как "один парт не в рагдоле" - HRP, а остальные 
-      подтягиваются через Motor6D
-    - Античит видит что Humanoid state = Running (легитимно)
+    НОВЫЙ ПРИНЦИП:
+    - НЕ блокируем состояния заранее (это вызывает застывание)
+    - Вместо этого РЕАКТИВНО ловим рагдолл и мгновенно выводим из него
+    - Восстанавливаем Motor6D если они были отключены
+    - Удаляем/отключаем рагдолл-констрейнты (BallSocket, Hinge)
+    - Убираем NoCollisionConstraint которые добавляются при рагдолле
+    - Форсим GettingUp -> Running с микрозадержкой
+    - Разблокируем все части тела (Anchored = false)
 ]]
 
 local ragdollStates = {
@@ -145,25 +131,36 @@ local ragdollStates = {
     Enum.HumanoidStateType.Physics,
 }
 
-local function disableRagdollState(humanoid)
-    for _, state in ipairs(ragdollStates) do
-        pcall(function()
-            humanoid:SetStateEnabled(state, false)
-        end)
+local function isRagdollState(state)
+    for _, rs in ipairs(ragdollStates) do
+        if state == rs then return true end
+    end
+    return false
+end
+
+-- Сохраняет все Motor6D при первом запуске
+local function saveMotors(character)
+    savedMotors = {}
+    if not character then return end
+    for _, desc in ipairs(character:GetDescendants()) do
+        if desc:IsA("Motor6D") then
+            savedMotors[desc] = {
+                Part0 = desc.Part0,
+                Part1 = desc.Part1,
+                C0 = desc.C0,
+                C1 = desc.C1,
+                Enabled = desc.Enabled,
+                Parent = desc.Parent,
+            }
+        end
     end
 end
 
-local function enableRagdollState(humanoid)
-    for _, state in ipairs(ragdollStates) do
-        pcall(function()
-            humanoid:SetStateEnabled(state, true)
-        end)
-    end
-end
-
--- Восстановить все Motor6D (они отключаются при ragdoll)
+-- Восстанавливает Motor6D - включает обратно
 local function restoreMotors(character)
     if not character then return end
+
+    -- Сначала пробуем включить существующие
     for _, desc in ipairs(character:GetDescendants()) do
         if desc:IsA("Motor6D") then
             pcall(function()
@@ -171,118 +168,258 @@ local function restoreMotors(character)
             end)
         end
     end
+
+    -- Если Motor6D были удалены - восстанавливаем из сохранения
+    for motor, data in pairs(savedMotors) do
+        pcall(function()
+            if not motor.Parent then
+                -- Motor6D был удалён, пересоздаём
+                if data.Parent and data.Parent.Parent then
+                    local newMotor = Instance.new("Motor6D")
+                    newMotor.Name = motor.Name
+                    newMotor.Part0 = data.Part0
+                    newMotor.Part1 = data.Part1
+                    newMotor.C0 = data.C0
+                    newMotor.C1 = data.C1
+                    newMotor.Parent = data.Parent
+                end
+            end
+        end)
+    end
 end
 
--- Убить ragdoll-констрейнты (сервер создаёт BallSocket/Hinge для ragdoll)
+-- Убивает рагдолл-констрейнты
 local function killRagdollConstraints(character)
     if not character then return end
     for _, desc in ipairs(character:GetDescendants()) do
         pcall(function()
-            if (desc:IsA("BallSocketConstraint") or desc:IsA("HingeConstraint")) then
-                -- Не удаляем (античит заметит), а просто выключаем
-                if desc.Name ~= "OriginalMotor" then
-                    desc.Enabled = false
+            if desc:IsA("BallSocketConstraint") or desc:IsA("HingeConstraint") then
+                desc.Enabled = false
+                -- Некоторые игры пересоздают, поэтому пробуем удалить
+                task.delay(0.1, function()
+                    pcall(function()
+                        if desc and desc.Parent then
+                            desc:Destroy()
+                        end
+                    end)
+                end)
+            end
+        end)
+    end
+end
+
+-- Убирает NoCollisionConstraint (часто добавляются при рагдолле)
+local function killNoCollisionConstraints(character)
+    if not character then return end
+    for _, desc in ipairs(character:GetDescendants()) do
+        pcall(function()
+            if desc:IsA("NoCollisionConstraint") then
+                desc:Destroy()
+            end
+        end)
+    end
+end
+
+-- Разанкоривает все части
+local function unanchorAll(character)
+    if not character then return end
+    for _, desc in ipairs(character:GetDescendants()) do
+        if desc:IsA("BasePart") then
+            pcall(function()
+                desc.Anchored = false
+            end)
+        end
+    end
+end
+
+-- Убирает CanCollide = false который ставят рагдолл-скрипты на конечности
+local function fixCollisions(character)
+    if not character then return end
+    for _, desc in ipairs(character:GetDescendants()) do
+        if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" then
+            pcall(function()
+                -- Не трогаем если это аксессуар
+                if not desc.Parent:IsA("Accessory") then
+                    desc.CanCollide = true
+                end
+            end)
+        end
+    end
+end
+
+-- Главная функция выхода из рагдолла
+local function breakOutOfRagdoll()
+    if not (char and hum and root) then return end
+    if hum.Health <= 0 then return end
+
+    pcall(function()
+        -- 1. Выключаем PlatformStand
+        hum.PlatformStand = false
+
+        -- 2. Восстанавливаем моторы
+        restoreMotors(char)
+
+        -- 3. Убиваем рагдолл-констрейнты
+        killRagdollConstraints(char)
+
+        -- 4. Убиваем NoCollisionConstraint
+        killNoCollisionConstraints(char)
+
+        -- 5. Разанкориваем
+        unanchorAll(char)
+
+        -- 6. Переключаем состояние
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end)
+
+    -- 7. Через микрозадержку форсим Running
+    task.delay(0.05, function()
+        pcall(function()
+            if hum and hum.Health > 0 then
+                hum.PlatformStand = false
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
+    end)
+
+    -- 8. Ещё раз через чуть больше задержку - страховка
+    task.delay(0.15, function()
+        pcall(function()
+            if hum and hum.Health > 0 then
+                hum.PlatformStand = false
+                restoreMotors(char)
+                local state = hum:GetState()
+                if isRagdollState(state) then
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    task.delay(0.05, function()
+                        pcall(function()
+                            hum:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                    end)
                 end
             end
         end)
-    end
-end
-
--- Снять PlatformStand (часто используется для ragdoll)
-local function fixPlatformStand(humanoid)
-    pcall(function()
-        if humanoid.PlatformStand then
-            humanoid.PlatformStand = false
-        end
     end)
 end
 
--- Принудительно вернуть в Running
-local function forceRunning(humanoid)
-    pcall(function()
-        local state = humanoid:GetState()
-        for _, rs in ipairs(ragdollStates) do
-            if state == rs then
-                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                task.delay(0.05, function()
-                    pcall(function()
-                        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                    end)
-                end)
-                break
-            end
-        end
-    end)
-end
-
--- Главный цикл анти-рагдолла (через Heartbeat — быстрее всего)
 local function startAntiRagdoll()
-    -- Отключаем состояния ragdoll
-    if hum then
-        disableRagdollState(hum)
-    end
-    
-    -- Слежение за новыми констрейнтами
-    if char then
-        local conn = char.DescendantAdded:Connect(function(desc)
-            if not Settings.AntiRagdollEnabled then return end
+    if not (char and hum) then return end
+
+    -- Сохраняем моторы
+    saveMotors(char)
+
+    -- Слушаем StateChanged - РЕАКТИВНО
+    local conn1 = hum.StateChanged:Connect(function(_, newState)
+        if not Settings.AntiRagdollEnabled then return end
+        if isRagdollState(newState) then
+            task.defer(function()
+                breakOutOfRagdoll()
+            end)
+        end
+    end)
+    table.insert(ragdollConnections, conn1)
+
+    -- Слушаем PlatformStand
+    local conn2 = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+        if not Settings.AntiRagdollEnabled then return end
+        if hum.PlatformStand then
             task.defer(function()
                 pcall(function()
-                    if desc:IsA("BallSocketConstraint") or desc:IsA("HingeConstraint") then
-                        desc.Enabled = false
-                    end
+                    hum.PlatformStand = false
                 end)
+                breakOutOfRagdoll()
             end)
-        end)
-        table.insert(ragdollConnections, conn)
-    end
-    
-    -- Слежение за Motor6D отключением
-    if char then
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc:IsA("Motor6D") then
-                local conn = desc:GetPropertyChangedSignal("Enabled"):Connect(function()
-                    if not Settings.AntiRagdollEnabled then return end
-                    task.defer(function()
+        end
+    end)
+    table.insert(ragdollConnections, conn2)
+
+    -- Слушаем добавление рагдолл-констрейнтов
+    local conn3 = char.DescendantAdded:Connect(function(desc)
+        if not Settings.AntiRagdollEnabled then return end
+        task.defer(function()
+            pcall(function()
+                if desc:IsA("BallSocketConstraint") or desc:IsA("HingeConstraint") then
+                    desc.Enabled = false
+                    task.delay(0.05, function()
                         pcall(function()
-                            if not desc.Enabled then
-                                desc.Enabled = true
+                            if desc and desc.Parent then
+                                desc:Destroy()
                             end
                         end)
                     end)
-                end)
-                table.insert(ragdollConnections, conn)
-            end
-        end
-    end
-    
-    -- Слежение за HumanoidStateType
-    if hum then
-        local conn = hum.StateChanged:Connect(function(_, newState)
-            if not Settings.AntiRagdollEnabled then return end
-            for _, rs in ipairs(ragdollStates) do
-                if newState == rs then
-                    task.defer(function()
-                        fixPlatformStand(hum)
-                        restoreMotors(char)
-                        killRagdollConstraints(char)
-                        forceRunning(hum)
-                    end)
-                    break
                 end
-            end
-        end)
-        table.insert(ragdollConnections, conn)
-        
-        -- PlatformStand watcher
-        local conn2 = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
-            if not Settings.AntiRagdollEnabled then return end
-            task.defer(function()
-                fixPlatformStand(hum)
+                if desc:IsA("NoCollisionConstraint") then
+                    desc:Destroy()
+                end
             end)
         end)
-        table.insert(ragdollConnections, conn2)
+    end)
+    table.insert(ragdollConnections, conn3)
+
+    -- Слушаем удаление Motor6D
+    for _, desc in ipairs(char:GetDescendants()) do
+        if desc:IsA("Motor6D") then
+            -- Если мотор отключается
+            local conn = desc:GetPropertyChangedSignal("Enabled"):Connect(function()
+                if not Settings.AntiRagdollEnabled then return end
+                task.defer(function()
+                    pcall(function()
+                        if not desc.Enabled then
+                            desc.Enabled = true
+                        end
+                    end)
+                end)
+            end)
+            table.insert(ragdollConnections, conn)
+
+            -- Если мотор удаляется
+            local conn2 = desc.AncestryChanged:Connect(function(_, parent)
+                if not Settings.AntiRagdollEnabled then return end
+                if parent == nil then
+                    -- Motor6D был удалён, восстанавливаем
+                    task.defer(function()
+                        restoreMotors(char)
+                    end)
+                end
+            end)
+            table.insert(ragdollConnections, conn2)
+        end
     end
+
+    -- Слушаем изменения Velocity на частях (некоторые рагдолл системы используют)
+    local conn4 = char.DescendantRemoving:Connect(function(desc)
+        if not Settings.AntiRagdollEnabled then return end
+        if desc:IsA("Motor6D") then
+            -- Сохраняем данные перед удалением для восстановления
+            local data = {
+                Name = desc.Name,
+                Part0 = desc.Part0,
+                Part1 = desc.Part1,
+                C0 = desc.C0,
+                C1 = desc.C1,
+                Parent = desc.Parent,
+            }
+            task.delay(0.05, function()
+                if not Settings.AntiRagdollEnabled then return end
+                pcall(function()
+                    if data.Parent and data.Parent.Parent and data.Part0 and data.Part1 then
+                        -- Проверяем что мотор действительно удалён
+                        local existing = data.Parent:FindFirstChild(data.Name)
+                        if not existing or not existing:IsA("Motor6D") then
+                            local newMotor = Instance.new("Motor6D")
+                            newMotor.Name = data.Name
+                            newMotor.Part0 = data.Part0
+                            newMotor.Part1 = data.Part1
+                            newMotor.C0 = data.C0
+                            newMotor.C1 = data.C1
+                            newMotor.Parent = data.Parent
+                        end
+                    end
+                end)
+            end)
+        end
+    end)
+    table.insert(ragdollConnections, conn4)
 end
 
 local function stopAntiRagdoll()
@@ -290,132 +427,55 @@ local function stopAntiRagdoll()
         pcall(function() conn:Disconnect() end)
     end
     ragdollConnections = {}
-    
-    if hum then
-        enableRagdollState(hum)
-    end
+    savedMotors = {}
 end
 
--- ==================== МОДУЛЬ 3: NO WALK ANIMATION ====================
---[[
-    ПРИНЦИП:
-    - Перехватываем Animator:LoadAnimation и AnimationTrack:Play
-    - Walk/Run анимации загружаются нормально (античит видит их)
-    - Но при Play() мы мгновенно ставим Speed = 0 и Weight = 0
-    - Анимация "играет" для сервера, но визуально — нет
-    - Для максимальной маскировки: не блокируем загрузку, только воспроизведение
-]]
-
--- Известные ID анимаций ходьбы/бега (Roblox default + популярные)
-local walkAnimKeywords = {
-    "walk", "run", "jog", "sprint", "stride", "locomotion"
-}
-
-local walkAnimIds = {
-    -- Default Roblox
-    "rbxassetid://180426354",  -- walk
-    "rbxassetid://180426354",  -- run  
-    "rbxassetid://204362942",  -- run
-    "rbxassetid://180426354",  -- walk
-    "rbxassetid://204362942",  -- sprint
-    -- R15 defaults
-    "rbxassetid://507767714",  -- walk R15
-    "rbxassetid://507767523",  -- run R15
-    "rbxassetid://913402848",  -- walk
-    "rbxassetid://913376220",  -- run
-}
-
-local function isWalkAnimation(animTrack)
-    -- Проверяем по имени
-    local name = ""
-    pcall(function()
-        name = string.lower(animTrack.Name or "")
-    end)
-    
-    for _, keyword in ipairs(walkAnimKeywords) do
-        if string.find(name, keyword) then
-            return true
-        end
-    end
-    
-    -- Проверяем по Animation объекту
-    pcall(function()
-        local anim = animTrack.Animation
-        if anim then
-            local animName = string.lower(anim.Name or "")
-            for _, keyword in ipairs(walkAnimKeywords) do
-                if string.find(animName, keyword) then
-                    return true
-                end
-            end
-            
-            local animId = tostring(anim.AnimationId or "")
-            for _, id in ipairs(walkAnimIds) do
-                if string.find(animId, id) then
-                    return true
-                end
-            end
-        end
-    end)
-    
-    return false
-end
-
--- Отслеживаемые треки
-local trackedWalkTracks = {}
-
-local function hookAnimationTrack(track)
+-- ==================== МОДУЛЬ 3: NO ANIMATIONS ====================
+local function hookAnimationTrackAll(track)
     if not track then return end
-    
-    if isWalkAnimation(track) then
-        trackedWalkTracks[track] = true
-        
-        -- Когда трек начинает играть - мгновенно глушим
-        local conn = track:GetPropertyChangedSignal("IsPlaying"):Connect(function()
-            if not Settings.NoWalkAnimEnabled then return end
-            if track.IsPlaying then
-                task.defer(function()
-                    pcall(function()
-                        track:AdjustSpeed(0)
-                        track:AdjustWeight(0, 0)
-                    end)
+    if trackedAllTracks[track] then return end
+    trackedAllTracks[track] = true
+
+    local conn = track:GetPropertyChangedSignal("IsPlaying"):Connect(function()
+        if not Settings.NoAnimationsEnabled then return end
+        if track.IsPlaying then
+            task.defer(function()
+                pcall(function()
+                    track:AdjustSpeed(0)
+                    track:AdjustWeight(0, 0)
                 end)
-            end
+            end)
+        end
+    end)
+    table.insert(animConnections, conn)
+
+    if Settings.NoAnimationsEnabled and track.IsPlaying then
+        pcall(function()
+            track:AdjustSpeed(0)
+            track:AdjustWeight(0, 0)
         end)
-        table.insert(animConnections, conn)
-        
-        -- Сразу глушим если уже играет
-        if Settings.NoWalkAnimEnabled and track.IsPlaying then
+    end
+end
+
+local function suppressAllTracks()
+    if not animator then return end
+    pcall(function()
+        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             pcall(function()
                 track:AdjustSpeed(0)
                 track:AdjustWeight(0, 0)
             end)
         end
-    end
-end
-
-local function scanExistingTracks()
-    if not animator then return end
-    pcall(function()
-        local tracks = animator:GetPlayingAnimationTracks()
-        for _, track in ipairs(tracks) do
-            hookAnimationTrack(track)
-        end
     end)
 end
 
--- Перехват LoadAnimation через метатаблицу (максимально скрытно)
-local originalLoadAnimation = nil
-
 local function hookAnimator()
     if not animator then return end
-    
-    -- Способ 1: Слушаем AnimationPlayed (самый надёжный)
+
     pcall(function()
         local conn = animator.AnimationPlayed:Connect(function(track)
-            hookAnimationTrack(track)
-            
-            if Settings.NoWalkAnimEnabled and isWalkAnimation(track) then
+            hookAnimationTrackAll(track)
+            if Settings.NoAnimationsEnabled then
                 task.defer(function()
                     pcall(function()
                         track:AdjustSpeed(0)
@@ -426,53 +486,44 @@ local function hookAnimator()
         end)
         table.insert(animConnections, conn)
     end)
-    
-    -- Способ 2: Humanoid.Running - когда начинается ходьба, глушим треки
+
     if hum then
-        local conn = hum.Running:Connect(function(speed)
-            if not Settings.NoWalkAnimEnabled then return end
-            if speed > 0.1 then
-                task.defer(function()
-                    suppressWalkTracks()
+        local events = {"Running", "Jumping", "Climbing", "Swimming", "FreeFalling"}
+        for _, evName in ipairs(events) do
+            pcall(function()
+                local conn = hum[evName]:Connect(function()
+                    if not Settings.NoAnimationsEnabled then return end
+                    task.defer(suppressAllTracks)
                 end)
-            end
+                table.insert(animConnections, conn)
+            end)
+        end
+
+        local conn = hum.StateChanged:Connect(function()
+            if not Settings.NoAnimationsEnabled then return end
+            task.defer(suppressAllTracks)
         end)
         table.insert(animConnections, conn)
     end
-    
-    scanExistingTracks()
-end
 
-function suppressWalkTracks()
-    if not animator then return end
     pcall(function()
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-            if isWalkAnimation(track) then
-                pcall(function()
-                    track:AdjustSpeed(0)
-                    track:AdjustWeight(0, 0)
-                end)
-            end
+            hookAnimationTrackAll(track)
         end
     end)
 end
 
-local function startNoWalkAnim()
+local function startNoAnimations()
     hookAnimator()
-    
-    -- Постоянный цикл подавления (на случай если анимация перезапускается)
-    -- Делаем через RenderStepped для мгновенной реакции
-    -- НЕ Heartbeat — RenderStepped быстрее для визуала
 end
 
-local function stopNoWalkAnim()
+local function stopNoAnimations()
     for _, conn in ipairs(animConnections) do
         pcall(function() conn:Disconnect() end)
     end
     animConnections = {}
-    
-    -- Восстанавливаем все заглушённые треки
-    for track, _ in pairs(trackedWalkTracks) do
+
+    for track, _ in pairs(trackedAllTracks) do
         pcall(function()
             if track and track.IsPlaying then
                 track:AdjustSpeed(1)
@@ -480,38 +531,48 @@ local function stopNoWalkAnim()
             end
         end)
     end
-    trackedWalkTracks = {}
+    trackedAllTracks = {}
 end
 
 -- ==================== ГЛАВНЫЙ HEARTBEAT ЦИКЛ ====================
--- Один цикл для всех модулей (экономия ресурсов + маскировка)
 heartbeatConnection = RunService.Heartbeat:Connect(function()
-    -- Обновляем персонажа если нужно
     if not (char and char.Parent) then
         refreshChar()
         return
     end
-    
+
     if not (hum and hum.Health > 0) then return end
-    
-    -- Анти-рагдолл: постоянная проверка
+
+    -- Анти-рагдолл - лёгкая проверка каждый кадр
     if Settings.AntiRagdollEnabled then
-        fixPlatformStand(hum)
-        
-        local state = hum:GetState()
-        for _, rs in ipairs(ragdollStates) do
-            if state == rs then
-                restoreMotors(char)
-                killRagdollConstraints(char)
-                forceRunning(hum)
-                break
+        -- Проверяем PlatformStand
+        pcall(function()
+            if hum.PlatformStand then
+                hum.PlatformStand = false
             end
-        end
+        end)
+
+        -- Проверяем состояние
+        pcall(function()
+            local state = hum:GetState()
+            if isRagdollState(state) then
+                breakOutOfRagdoll()
+            end
+        end)
+
+        -- Проверяем что все моторы включены
+        pcall(function()
+            for _, desc in ipairs(char:GetDescendants()) do
+                if desc:IsA("Motor6D") and not desc.Enabled then
+                    desc.Enabled = true
+                end
+            end
+        end)
     end
-    
-    -- NoWalkAnim: постоянное подавление
-    if Settings.NoWalkAnimEnabled then
-        suppressWalkTracks()
+
+    -- NoAnimations
+    if Settings.NoAnimationsEnabled then
+        suppressAllTracks()
     end
 end)
 
@@ -519,28 +580,27 @@ end)
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     refreshChar()
-    
     task.wait(0.3)
-    
+
     if Settings.AntiRagdollEnabled then
         stopAntiRagdoll()
         startAntiRagdoll()
     end
-    
-    if Settings.NoWalkAnimEnabled then
-        stopNoWalkAnim()
+
+    if Settings.NoAnimationsEnabled then
+        stopNoAnimations()
         task.wait(0.2)
-        startNoWalkAnim()
+        startNoAnimations()
     end
 end)
 
 -- ==================== GUI ====================
-if playerGui:FindFirstChild("NuclearUltimateGUI") then
-    playerGui:FindFirstChild("NuclearUltimateGUI"):Destroy()
+if playerGui:FindFirstChild("GranzHubGUI") then
+    playerGui:FindFirstChild("GranzHubGUI"):Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "NuclearUltimateGUI"
+ScreenGui.Name = "GranzHubGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = playerGui
@@ -580,7 +640,6 @@ MainStroke.Thickness = 2
 MainStroke.Transparency = 0.3
 MainStroke.Parent = MainFrame
 
--- Тень (фейковая)
 local Shadow = Instance.new("ImageLabel")
 Shadow.Size = UDim2.new(1, 30, 1, 30)
 Shadow.Position = UDim2.new(0, -15, 0, -15)
@@ -604,7 +663,6 @@ local HeaderCorner = Instance.new("UICorner")
 HeaderCorner.CornerRadius = UDim.new(0, 18)
 HeaderCorner.Parent = Header
 
--- Убираем скругление снизу у шапки
 local HeaderFix = Instance.new("Frame")
 HeaderFix.Size = UDim2.new(1, 0, 0, 20)
 HeaderFix.Position = UDim2.new(0, 0, 1, -20)
@@ -616,7 +674,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -80, 1, 0)
 Title.Position = UDim2.new(0, 18, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "☢️ NUCLEAR ULTIMATE"
+Title.Text = "🔥 Granz Hub"
 Title.TextColor3 = Colors.textMain
 Title.TextSize = 17
 Title.Font = Enum.Font.GothamBold
@@ -627,13 +685,12 @@ local Version = Instance.new("TextLabel")
 Version.Size = UDim2.new(0, 50, 0, 20)
 Version.Position = UDim2.new(1, -100, 0.5, -10)
 Version.BackgroundTransparency = 1
-Version.Text = "v10.0"
+Version.Text = "v10.1"
 Version.TextColor3 = Colors.accent
 Version.TextSize = 12
 Version.Font = Enum.Font.GothamBold
 Version.Parent = Header
 
--- Кнопка свернуть
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -75, 0, 11)
@@ -646,7 +703,6 @@ MinBtn.BorderSizePixel = 0
 MinBtn.Parent = Header
 Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 8)
 
--- Кнопка закрыть
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -40, 0, 11)
@@ -680,12 +736,12 @@ local function createModuleButton(name, description, order, onColor)
     Container.LayoutOrder = order
     Container.Parent = Content
     Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 12)
-    
+
     local ModStroke = Instance.new("UIStroke")
     ModStroke.Color = Color3.fromRGB(50, 50, 60)
     ModStroke.Thickness = 1
     ModStroke.Parent = Container
-    
+
     local NameLabel = Instance.new("TextLabel")
     NameLabel.Size = UDim2.new(1, -80, 0, 25)
     NameLabel.Position = UDim2.new(0, 15, 0, 12)
@@ -696,7 +752,7 @@ local function createModuleButton(name, description, order, onColor)
     NameLabel.Font = Enum.Font.GothamBold
     NameLabel.TextXAlignment = Enum.TextXAlignment.Left
     NameLabel.Parent = Container
-    
+
     local DescLabel = Instance.new("TextLabel")
     DescLabel.Size = UDim2.new(1, -80, 0, 18)
     DescLabel.Position = UDim2.new(0, 15, 0, 38)
@@ -707,8 +763,7 @@ local function createModuleButton(name, description, order, onColor)
     DescLabel.Font = Enum.Font.Gotham
     DescLabel.TextXAlignment = Enum.TextXAlignment.Left
     DescLabel.Parent = Container
-    
-    -- Тоггл-кнопка (справа)
+
     local ToggleBG = Instance.new("TextButton")
     ToggleBG.Size = UDim2.new(0, 52, 0, 28)
     ToggleBG.Position = UDim2.new(1, -65, 0.5, -14)
@@ -718,7 +773,7 @@ local function createModuleButton(name, description, order, onColor)
     ToggleBG.AutoButtonColor = false
     ToggleBG.Parent = Container
     Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
-    
+
     local ToggleCircle = Instance.new("Frame")
     ToggleCircle.Size = UDim2.new(0, 22, 0, 22)
     ToggleCircle.Position = UDim2.new(0, 3, 0.5, -11)
@@ -726,7 +781,7 @@ local function createModuleButton(name, description, order, onColor)
     ToggleCircle.BorderSizePixel = 0
     ToggleCircle.Parent = ToggleBG
     Instance.new("UICorner", ToggleCircle).CornerRadius = UDim.new(1, 0)
-    
+
     local StatusDot = Instance.new("Frame")
     StatusDot.Size = UDim2.new(0, 8, 0, 8)
     StatusDot.Position = UDim2.new(0, 15, 0, 15)
@@ -734,13 +789,10 @@ local function createModuleButton(name, description, order, onColor)
     StatusDot.BorderSizePixel = 0
     StatusDot.Parent = Container
     Instance.new("UICorner", StatusDot).CornerRadius = UDim.new(1, 0)
-    
-    local isOn = false
-    
+
     local function updateVisual(state)
-        isOn = state
         local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        
+
         if state then
             TweenService:Create(ToggleBG, tweenInfo, {BackgroundColor3 = onColor}):Play()
             TweenService:Create(ToggleCircle, tweenInfo, {Position = UDim2.new(1, -25, 0.5, -11)}):Play()
@@ -755,29 +807,29 @@ local function createModuleButton(name, description, order, onColor)
             TweenService:Create(StatusDot, tweenInfo, {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}):Play()
         end
     end
-    
+
     return ToggleBG, updateVisual, Container
 end
 
 -- ==================== СОЗДАЁМ 3 МОДУЛЯ ====================
 local JumpToggle, JumpVisual = createModuleButton(
-    "⚡ Infinite Jump", 
-    "Бесконечные прыжки в воздухе", 
-    1, 
+    "⚡ Infinite Jump",
+    "Бесконечные прыжки в воздухе",
+    1,
     Colors.btnOn
 )
 
 local RagdollToggle, RagdollVisual = createModuleButton(
-    "🛡️ Anti-Ragdoll", 
-    "Блокирует рагдолл, якорит HRP", 
-    2, 
+    "🛡️ Anti-Ragdoll",
+    "Мгновенный выход из рагдолла",
+    2,
     Colors.btnOnAlt1
 )
 
-local WalkAnimToggle, WalkAnimVisual = createModuleButton(
-    "👻 No Walk Animation", 
-    "Скрытая ходьба без анимации", 
-    3, 
+local AnimToggle, AnimVisual = createModuleButton(
+    "👻 No Animations",
+    "Отключает все анимации персонажа",
+    3,
     Colors.btnOnAlt2
 )
 
@@ -805,9 +857,9 @@ local function updateStatus()
     local count = 0
     if Settings.InfJumpEnabled then count = count + 1 end
     if Settings.AntiRagdollEnabled then count = count + 1 end
-    if Settings.NoWalkAnimEnabled then count = count + 1 end
-    StatusLabel.Text = "Активных модулей: " .. count .. "/3  |  ☢️ Nuclear Framework"
-    
+    if Settings.NoAnimationsEnabled then count = count + 1 end
+    StatusLabel.Text = "Активных модулей: " .. count .. "/3  |  🔥 Granz Hub"
+
     if count > 0 then
         StatusLabel.TextColor3 = Colors.textGreen
     else
@@ -819,7 +871,7 @@ end
 JumpToggle.MouseButton1Click:Connect(function()
     Settings.InfJumpEnabled = not Settings.InfJumpEnabled
     JumpVisual(Settings.InfJumpEnabled)
-    
+
     if Settings.InfJumpEnabled then
         refreshChar()
     end
@@ -829,7 +881,7 @@ end)
 RagdollToggle.MouseButton1Click:Connect(function()
     Settings.AntiRagdollEnabled = not Settings.AntiRagdollEnabled
     RagdollVisual(Settings.AntiRagdollEnabled)
-    
+
     if Settings.AntiRagdollEnabled then
         refreshChar()
         startAntiRagdoll()
@@ -839,15 +891,15 @@ RagdollToggle.MouseButton1Click:Connect(function()
     updateStatus()
 end)
 
-WalkAnimToggle.MouseButton1Click:Connect(function()
-    Settings.NoWalkAnimEnabled = not Settings.NoWalkAnimEnabled
-    WalkAnimVisual(Settings.NoWalkAnimEnabled)
-    
-    if Settings.NoWalkAnimEnabled then
+AnimToggle.MouseButton1Click:Connect(function()
+    Settings.NoAnimationsEnabled = not Settings.NoAnimationsEnabled
+    AnimVisual(Settings.NoAnimationsEnabled)
+
+    if Settings.NoAnimationsEnabled then
         refreshChar()
-        startNoWalkAnim()
+        startNoAnimations()
     else
-        stopNoWalkAnim()
+        stopNoAnimations()
     end
     updateStatus()
 end)
@@ -859,7 +911,7 @@ local fullSize = MainFrame.Size
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-    
+
     if minimized then
         TweenService:Create(MainFrame, tweenInfo, {Size = UDim2.new(0, 320, 0, 52)}):Play()
         Content.Visible = false
@@ -874,42 +926,40 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    -- Всё отключаем
     Settings.InfJumpEnabled = false
     Settings.AntiRagdollEnabled = false
-    Settings.NoWalkAnimEnabled = false
-    
+    Settings.NoAnimationsEnabled = false
+
     stopAntiRagdoll()
-    stopNoWalkAnim()
-    
+    stopNoAnimations()
+
     if heartbeatConnection then
         heartbeatConnection:Disconnect()
     end
-    
-    -- Красивое закрытие
+
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
     TweenService:Create(MainFrame, tweenInfo, {
         Size = UDim2.new(0, 0, 0, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0)
     }):Play()
     TweenService:Create(MainFrame, tweenInfo, {BackgroundTransparency = 1}):Play()
-    
+
     task.delay(0.35, function()
         ScreenGui:Destroy()
     end)
 end)
 
--- ==================== АНИМАЦИЯ ОБВОДКИ (ПУЛЬСАЦИЯ) ====================
+-- ==================== АНИМАЦИЯ ОБВОДКИ ====================
 task.spawn(function()
     local hue = 0
     while ScreenGui and ScreenGui.Parent do
         hue = (hue + 0.003) % 1
-        
+
         local activeCount = 0
         if Settings.InfJumpEnabled then activeCount = activeCount + 1 end
         if Settings.AntiRagdollEnabled then activeCount = activeCount + 1 end
-        if Settings.NoWalkAnimEnabled then activeCount = activeCount + 1 end
-        
+        if Settings.NoAnimationsEnabled then activeCount = activeCount + 1 end
+
         if activeCount > 0 then
             MainStroke.Color = Color3.fromHSV(hue, 0.8, 1)
             MainStroke.Transparency = 0.1
@@ -917,7 +967,7 @@ task.spawn(function()
             MainStroke.Color = Color3.fromRGB(60, 60, 70)
             MainStroke.Transparency = 0.5
         end
-        
+
         task.wait(0.03)
     end
 end)
@@ -925,13 +975,11 @@ end)
 -- ==================== ФИНАЛ ====================
 updateStatus()
 
-print("☢️ ══════════════════════════════════════")
-print("☢️ NUCLEAR BRAINROT GUI v10.0 ULTIMATE")
-print("☢️ ══════════════════════════════════════")
-print("☢️ Модули:")
-print("   ⚡ Infinite Jump     — прыжки без смерти")
-print("   🛡️ Anti-Ragdoll      — якорь HRP + убийство констрейнтов")
-print("   👻 No Walk Animation — скрытое подавление анимаций")
-print("☢️ ══════════════════════════════════════")
-print("☢️ Античит-маскировка: АКТИВНА")
-print("☢️ Готово! С тебя чаек с печенькой 🍪☕")
+print("🔥 ══════════════════════════════════════")
+print("🔥 GRANZ HUB v10.1 ULTIMATE (FIXED)")
+print("🔥 ══════════════════════════════════════")
+print("🔥 Anti-Ragdoll: РЕАКТИВНЫЙ (не блокирует, а выводит)")
+print("🔥 + Восстановление Motor6D при удалении")
+print("🔥 + Убийство BallSocket/Hinge/NoCollision")
+print("🔥 + Многоуровневая страховка (3 попытки выхода)")
+print("🔥 ══════════════════════════════════════")
