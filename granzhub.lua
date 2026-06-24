@@ -1,176 +1,198 @@
 --[[
-    ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-    █  ENCRYPTED PAYLOAD — RUNTIME ONLY █
-    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+    ██████████████████████████████████████
+    ██  RUNTIME PAYLOAD — DO NOT EDIT   ██
+    ██████████████████████████████████████
 ]]
 
-local _Ω = Random.new(
-    tick() * os.clock() * math.random(1,9999999)
-    + select(2, pcall(function() return game:GetService("Stats"):GetTotalMemoryUsageMb() end)) or 0
-)
-local function _μ(l)
-    l = l or _Ω:NextInteger(14,22)
-    local t = {}
-    for i = 1, l do
-        local r = _Ω:NextInteger(1,5)
-        if r <= 2 then t[i] = string.char(_Ω:NextInteger(97,122))
-        elseif r <= 4 then t[i] = string.char(_Ω:NextInteger(65,90))
-        else t[i] = string.char(_Ω:NextInteger(48,57))
-        end
-    end
-    return table.concat(t)
-end
-local function _δ() return _Ω:NextNumber(0.002, 0.008) end
-local function _ρ(a,b) return _Ω:NextNumber(a,b) end
-local function _ι(a,b) return _Ω:NextInteger(a,b) end
+-- ═══════════ ANTI-DETECTION LAYER ═══════════
+local _ENV_SEED = (tick() % 1) * os.clock() * math.random(100000, 9999999)
+local _RNG = Random.new(math.floor(_ENV_SEED) % 2147483647)
 
-local _G_ = setmetatable({}, {
-    __index = function(s, k)
-        local ok, v = pcall(game.GetService, game, k)
-        if ok and v then rawset(s, k, v) end
+local function _genID(len)
+    len = len or _RNG:NextInteger(16, 28)
+    local buf = table.create(len)
+    for i = 1, len do
+        local r = _RNG:NextInteger(1, 62)
+        if r <= 26 then buf[i] = string.char(96 + r)
+        elseif r <= 52 then buf[i] = string.char(38 + r)
+        else buf[i] = string.char(r - 53 + 48) end
+    end
+    return table.concat(buf)
+end
+
+local function _jitter() return _RNG:NextNumber(0.001, 0.009) end
+local function _rF(a, b) return _RNG:NextNumber(a, b) end
+local function _rI(a, b) return _RNG:NextInteger(a, b) end
+
+-- Proxy service cache
+local _SVC = setmetatable({}, {
+    __index = function(self, key)
+        local s, v = pcall(game.GetService, game, key)
+        if s and v then rawset(self, key, v) end
         return v
     end
 })
 
-local _P   = _G_.Players
-local _UI  = _G_.UserInputService
-local _RS  = _G_.RunService
-local _TW  = _G_.TweenService
+local Players        = _SVC.Players
+local UIS            = _SVC.UserInputService
+local RunService     = _SVC.RunService
+local TweenService   = _SVC.TweenService
+local StarterGui     = _SVC.StarterGui
 
-local _lp  = _P.LocalPlayer
-local _pg  = _lp:WaitForChild("PlayerGui")
+local LP  = Players.LocalPlayer
+local PG  = LP:WaitForChild("PlayerGui")
+local Cam = workspace.CurrentCamera
+
+-- ═══════════ ANTI-DETECTION: Scrambled globals ═══════════
+local _tWait   = task.wait
+local _tDelay  = task.delay
+local _tSpawn  = task.spawn
+local _tDefer  = task.defer
+local _pCall   = pcall
+local _iNew    = Instance.new
+local _v3      = Vector3.new
+local _v3z     = Vector3.zero
+local _cf      = CFrame.new
+local _cfLA    = CFrame.lookAt
+local _ud2     = UDim2.new
+local _udim    = UDim.new
+local _c3      = Color3.fromRGB
+local _c3h     = Color3.fromHSV
+local _csNew   = ColorSequence.new
+local _csk     = ColorSequenceKeypoint.new
+local _nsNew   = NumberSequence.new
+local _nsk     = NumberSequenceKeypoint.new
+local _twInfo  = TweenInfo.new
+local _enumKC  = Enum.KeyCode
+local _enumES  = Enum.EasingStyle
+local _enumED  = Enum.EasingDirection
+local _enumHS  = Enum.HumanoidStateType
+local _mFloor  = math.floor
+local _mSin    = math.sin
+local _mCos    = math.cos
+local _mAbs    = math.abs
+local _mPi     = math.pi
+local _mRad    = math.rad
+local _strChar = string.char
+
+-- Anti-detection: Randomize execution timing
+_tWait(_rF(0.01, 0.04))
 
 -- ═══════════ CONFIG ═══════════
-local _Σ = {
-    j  = false,   -- InfJump
-    ar = false,   -- AntiRagdoll
-    na = false,   -- NoAnim
-    jp = 50,
-    cd = 0.12,
-    mf = -60,
+local CFG = {
+    infJump      = false,
+    antiRagdoll  = false,
+    noAnim       = false,
+    jumpPower    = 50,
+    jumpCooldown = 0.12,
+    maxFallVel   = -60,
 }
 
 -- ═══════════ STATE ═══════════
-local _lastJ    = 0
-local _ch, _hu, _rt, _an
-local _rc, _ac  = {}, {}
-local _hb       = nil
-local _trk      = {}
-local _mS       = {}
-local _fM       = {}
+local _lastJump     = 0
+local _char, _hum, _rootPart, _animator
+local _ragConns     = {}
+local _animConns    = {}
+local _heartbeatC   = nil
+local _trackedAnims = {}
+local _motorSnap    = {}
+local _fabricMotors = {}
+local _frameCount   = 0
 
--- Ghost v6
-local _gActive  = false
-local _gPart    = nil
-local _bM       = {}
-local _rActive  = false
-local _rStart   = 0
-local _gCF      = nil
-local _exiting  = false
-local _rTimeout = 8
-local _fc       = 0
+-- Ghost v7
+local _ghostActive  = false
+local _ghostPart    = nil
+local _ghostMovers  = {}
+local _ragActive    = false
+local _ragStart     = 0
+local _ghostCF      = nil
+local _exitingRag   = false
+local _ragTimeout   = 8
 
-local function _sf(o,n) local k,r = pcall(function() return o:FindFirstChild(n) end) return k and r end
-local function _sfc(o,c) local k,r = pcall(function() return o:FindFirstChildOfClass(c) end) return k and r end
-
-local function _ref()
-    _ch = _lp.Character
-    if not _ch then return false end
-    _hu = _sfc(_ch, "Humanoid")
-    _rt = _sf(_ch, "HumanoidRootPart")
-    _an = _hu and _sfc(_hu, "Animator")
-    return _hu ~= nil and _rt ~= nil
+-- ═══════════ UTILITY ═══════════
+local function _sf(obj, name)
+    local ok, r = _pCall(function() return obj:FindFirstChild(name) end)
+    return ok and r
 end
-_ref()
+
+local function _sfc(obj, cls)
+    local ok, r = _pCall(function() return obj:FindFirstChildOfClass(cls) end)
+    return ok and r
+end
+
+local function _refreshChar()
+    _char = LP.Character
+    if not _char then return false end
+    _hum = _sfc(_char, "Humanoid")
+    _rootPart = _sf(_char, "HumanoidRootPart")
+    _animator = _hum and _sfc(_hum, "Animator")
+    return _hum ~= nil and _rootPart ~= nil
+end
+_refreshChar()
 
 -- ═══════════ INFINITE JUMP ═══════════
-local function _dJ()
-    if not _Σ.j then return end
-    local jr = _rt
-    if _gActive and _gPart and _gPart.Parent then jr = _gPart end
-    if not (jr and jr.Parent) then return end
-    if _hu and _hu.Health <= 0 then return end
-    local n = tick()
-    if n - _lastJ < _Σ.cd then return end
-    _lastJ = n
-    local cv = jr.AssemblyLinearVelocity
-    local ny = _Σ.jp
-    if cv.Y < _Σ.mf then ny = _Σ.jp + math.abs(cv.Y) * 0.3 end
-    jr.AssemblyLinearVelocity = Vector3.new(
-        cv.X * _ρ(0.87, 0.93),
-        ny + _ρ(-0.2, 0.2),
-        cv.Z * _ρ(0.87, 0.93)
+local function _doJump()
+    if not CFG.infJump then return end
+    local jumpRoot = _rootPart
+    if _ghostActive and _ghostPart and _ghostPart.Parent then jumpRoot = _ghostPart end
+    if not (jumpRoot and jumpRoot.Parent) then return end
+    if _hum and _hum.Health <= 0 then return end
+
+    local now = tick()
+    if now - _lastJump < CFG.jumpCooldown then return end
+    _lastJump = now
+
+    local cv = jumpRoot.AssemblyLinearVelocity
+    local newY = CFG.jumpPower
+    if cv.Y < CFG.maxFallVel then
+        newY = CFG.jumpPower + _mAbs(cv.Y) * 0.3
+    end
+
+    jumpRoot.AssemblyLinearVelocity = _v3(
+        cv.X * _rF(0.87, 0.93),
+        newY + _rF(-0.2, 0.2),
+        cv.Z * _rF(0.87, 0.93)
     )
-    task.delay(0.04 + _δ(), function()
-        if jr and jr.Parent and _Σ.j then
-            local v = jr.AssemblyLinearVelocity
-            if v.Y < _Σ.jp * 0.75 then
-                jr.AssemblyLinearVelocity = Vector3.new(v.X, _Σ.jp * _ρ(0.85, 0.95), v.Z)
+
+    _tDelay(0.04 + _jitter(), function()
+        if jumpRoot and jumpRoot.Parent and CFG.infJump then
+            local v = jumpRoot.AssemblyLinearVelocity
+            if v.Y < CFG.jumpPower * 0.75 then
+                jumpRoot.AssemblyLinearVelocity = _v3(v.X, CFG.jumpPower * _rF(0.85, 0.95), v.Z)
             end
         end
     end)
 end
 
-_UI.InputBegan:Connect(function(inp, gp)
-    if gp then return end
-    if inp.KeyCode == Enum.KeyCode.Space then
-        if not _hu then return end
-        if _gActive then _dJ() return end
-        if not _rt then return end
-        local st = _hu:GetState()
-        if st == Enum.HumanoidStateType.Freefall
-            or st == Enum.HumanoidStateType.Jumping
-            or st == Enum.HumanoidStateType.FallingDown then
-            _dJ()
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == _enumKC.Space then
+        if not _hum then return end
+        if _ghostActive then _doJump() return end
+        if not _rootPart then return end
+        local st = _hum:GetState()
+        if st == _enumHS.Freefall or st == _enumHS.Jumping or st == _enumHS.FallingDown then
+            _doJump()
         end
     end
 end)
 
--- ═══════════ GHOST ANTI-RAGDOLL v6.0 ═══════════
---[[
-    ╔══════════════════════════════════════════════╗
-    ║  КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v6.0               ║
-    ║                                              ║
-    ║  ПРИЧИНА СМЕРТИ В v5:                        ║
-    ║  Мы каждый кадр принудительно двигали        ║
-    ║  HumanoidRootPart к призраку через CFrame.   ║
-    ║  Это конфликтовало с серверной физикой:       ║
-    ║  - Сервер двигал root в одну сторону          ║
-    ║  - Мы двигали в другую                        ║
-    ║  - Сервер видел "нелегальное движение"        ║
-    ║  - Игра считала это падением/застреванием      ║
-    ║  - Результат: смерть                          ║
-    ║                                              ║
-    ║  РЕШЕНИЕ v6:                                  ║
-    ║  ПОЛНОСТЬЮ НЕ ТРОГАТЬ ТЕЛО ВО ВРЕМЯ РАГДОЛЛА ║
-    ║                                              ║
-    ║  1. Тело летит в рагдолле КАК ОБЫЧНО          ║
-    ║  2. Призрак создаётся отдельно                 ║
-    ║  3. Камера на призраке                         ║
-    ║  4. WASD двигает призрака                      ║
-    ║  5. Тело НЕ ТРОГАЕМ вообще                     ║
-    ║  6. Когда рагдолл ЗАКАНЧИВАЕТСЯ САМИ (!)       ║
-    ║     ТОЛЬКО ТОГДА телепортируем root к ghost    ║
-    ║  7. Убираем призрака, камера обратно           ║
-    ║                                              ║
-    ║  Ключ: ждём ЕСТЕСТВЕННОГО конца рагдолла!     ║
-    ╚══════════════════════════════════════════════╝
-]]
-
-local _ragS = {
-    [Enum.HumanoidStateType.Ragdoll]     = true,
-    [Enum.HumanoidStateType.FallingDown] = true,
-    [Enum.HumanoidStateType.Physics]     = true,
+-- ═══════════ GHOST ANTI-RAGDOLL v7.0 ═══════════
+local _ragStates = {
+    [_enumHS.Ragdoll]     = true,
+    [_enumHS.FallingDown] = true,
+    [_enumHS.Physics]     = true,
 }
-local function _isR(st) return _ragS[st] == true end
 
-local function _snapM()
-    _mS = {}
-    if not _ch then return end
-    for _, v in ipairs(_ch:GetDescendants()) do
+local function _isRagdoll(st) return _ragStates[st] == true end
+
+local function _snapshotMotors()
+    _motorSnap = {}
+    if not _char then return end
+    for _, v in ipairs(_char:GetDescendants()) do
         if v:IsA("Motor6D") then
-            _mS[#_mS + 1] = {
-                r = v, n = v.Name, p = v.Parent,
+            _motorSnap[#_motorSnap + 1] = {
+                ref = v, name = v.Name, par = v.Parent,
                 p0 = v.Part0, p1 = v.Part1,
                 c0 = v.C0, c1 = v.C1,
             }
@@ -178,58 +200,57 @@ local function _snapM()
     end
 end
 
-local function _restM()
-    if not _ch then return end
-    for _, d in ipairs(_mS) do
-        pcall(function()
-            if d.r and d.r.Parent then
-                d.r.Enabled = true
+local function _restoreMotors()
+    if not _char then return end
+    for _, d in ipairs(_motorSnap) do
+        _pCall(function()
+            if d.ref and d.ref.Parent then
+                d.ref.Enabled = true
                 return
             end
-            if not (d.p and d.p.Parent and d.p0 and d.p0.Parent and d.p1 and d.p1.Parent) then return end
-            local ex = d.p:FindFirstChild(d.n)
-            if ex and ex:IsA("Motor6D") then ex.Enabled = true d.r = ex return end
-            local m = Instance.new("Motor6D")
-            m.Name = d.n
+            if not (d.par and d.par.Parent and d.p0 and d.p0.Parent and d.p1 and d.p1.Parent) then return end
+            local ex = d.par:FindFirstChild(d.name)
+            if ex and ex:IsA("Motor6D") then
+                ex.Enabled = true
+                d.ref = ex
+                return
+            end
+            local m = _iNew("Motor6D")
+            m.Name = d.name
             m.Part0 = d.p0
             m.Part1 = d.p1
             m.C0 = d.c0
             m.C1 = d.c1
-            m.Parent = d.p
-            d.r = m
-            _fM[#_fM + 1] = m
+            m.Parent = d.par
+            d.ref = m
+            _fabricMotors[#_fabricMotors + 1] = m
         end)
     end
 end
 
-local function _nukC()
-    if not _ch then return end
-    local bad = {
-        BallSocketConstraint = true,
-        HingeConstraint = true,
-        NoCollisionConstraint = true,
-        RopeConstraint = true,
-        SpringConstraint = true,
-        CylindricalConstraint = true,
+local function _nukeConstraints()
+    if not _char then return end
+    local badTypes = {
+        BallSocketConstraint = true, HingeConstraint = true,
+        NoCollisionConstraint = true, RopeConstraint = true,
+        SpringConstraint = true, CylindricalConstraint = true,
         PrismaticConstraint = true,
     }
-    for _, v in ipairs(_ch:GetDescendants()) do
-        pcall(function()
-            if bad[v.ClassName] then v:Destroy() end
+    for _, v in ipairs(_char:GetDescendants()) do
+        _pCall(function()
+            if badTypes[v.ClassName] then v:Destroy() end
         end)
     end
 end
 
--- ─── Создание призрака ───
-local function _spawnG()
-    if _gPart and _gPart.Parent then return end
-    if not (_rt and _rt.Parent and _ch) then return end
+local function _spawnGhost()
+    if _ghostPart and _ghostPart.Parent then return end
+    if not (_rootPart and _rootPart.Parent and _char) then return end
 
-    local cf = _rt.CFrame
-
-    local g = Instance.new("Part")
-    g.Name = _μ(12)
-    g.Size = Vector3.new(2, 2, 1)
+    local cf = _rootPart.CFrame
+    local g = _iNew("Part")
+    g.Name = _genID(14)
+    g.Size = _v3(2, 2, 1)
     g.Transparency = 1
     g.CanCollide = true
     g.CanQuery = false
@@ -240,1399 +261,1620 @@ local function _spawnG()
     g.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
     g.Parent = workspace
 
-    _gPart = g
-    _gCF = cf
+    _ghostPart = g
+    _ghostCF = cf
 
-    local bv = Instance.new("BodyVelocity")
-    bv.Name = _μ(6)
-    bv.MaxForce = Vector3.new(15000, 0, 15000)
-    bv.Velocity = Vector3.zero
+    local bv = _iNew("BodyVelocity")
+    bv.Name = _genID(8)
+    bv.MaxForce = _v3(15000, 0, 15000)
+    bv.Velocity = _v3z
     bv.P = 2500
     bv.Parent = g
-    _bM.bv = bv
+    _ghostMovers.bv = bv
 
-    local bg = Instance.new("BodyGyro")
-    bg.Name = _μ(6)
-    bg.MaxTorque = Vector3.new(0, 15000, 0)
+    local bg = _iNew("BodyGyro")
+    bg.Name = _genID(8)
+    bg.MaxTorque = _v3(0, 15000, 0)
     bg.P = 5000
     bg.D = 200
     bg.Parent = g
-    _bM.bg = bg
+    _ghostMovers.bg = bg
 
-    local bf = Instance.new("BodyForce")
-    bf.Name = _μ(6)
-    bf.Force = Vector3.new(0, g:GetMass() * workspace.Gravity * 0.18, 0)
+    local bf = _iNew("BodyForce")
+    bf.Name = _genID(8)
+    bf.Force = _v3(0, g:GetMass() * workspace.Gravity * 0.18, 0)
     bf.Parent = g
-    _bM.bf = bf
+    _ghostMovers.bf = bf
 
-    _gActive = true
+    _ghostActive = true
 end
 
--- ─── Управление призраком (каждый кадр) ───
-local function _ctrlG()
-    if not _gActive then return end
-    if not (_gPart and _gPart.Parent) then
-        _gActive = false
+local function _controlGhost()
+    if not _ghostActive then return end
+    if not (_ghostPart and _ghostPart.Parent) then
+        _ghostActive = false
         return
     end
 
     local cam = workspace.CurrentCamera
     if not cam then return end
 
-    local md = Vector3.zero
-    local cf = cam.CFrame
-    local fwd = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+    local moveDir = _v3z
+    local camCF = cam.CFrame
+    local fwd = _v3(camCF.LookVector.X, 0, camCF.LookVector.Z)
     if fwd.Magnitude > 0.001 then fwd = fwd.Unit end
-    local rgt = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+    local rgt = _v3(camCF.RightVector.X, 0, camCF.RightVector.Z)
     if rgt.Magnitude > 0.001 then rgt = rgt.Unit end
 
-    if _UI:IsKeyDown(Enum.KeyCode.W) then md = md + fwd end
-    if _UI:IsKeyDown(Enum.KeyCode.S) then md = md - fwd end
-    if _UI:IsKeyDown(Enum.KeyCode.D) then md = md + rgt end
-    if _UI:IsKeyDown(Enum.KeyCode.A) then md = md - rgt end
+    if UIS:IsKeyDown(_enumKC.W) then moveDir = moveDir + fwd end
+    if UIS:IsKeyDown(_enumKC.S) then moveDir = moveDir - fwd end
+    if UIS:IsKeyDown(_enumKC.D) then moveDir = moveDir + rgt end
+    if UIS:IsKeyDown(_enumKC.A) then moveDir = moveDir - rgt end
 
     local spd = 16
-    pcall(function() if _hu then spd = _hu.WalkSpeed end end)
+    _pCall(function() if _hum then spd = _hum.WalkSpeed end end)
 
-    if md.Magnitude > 0.01 then
-        md = md.Unit * spd
-        if _bM.bg then
-            pcall(function()
-                _bM.bg.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(md.X, 0, md.Z))
+    if moveDir.Magnitude > 0.01 then
+        moveDir = moveDir.Unit * spd
+        if _ghostMovers.bg then
+            _pCall(function()
+                _ghostMovers.bg.CFrame = _cfLA(_v3z, _v3(moveDir.X, 0, moveDir.Z))
             end)
         end
     end
 
-    if _bM.bv then
-        _bM.bv.Velocity = Vector3.new(md.X, 0, md.Z)
+    if _ghostMovers.bv then
+        _ghostMovers.bv.Velocity = _v3(moveDir.X, 0, moveDir.Z)
     end
 
-    -- Камера следит за призраком
-    pcall(function() cam.CameraSubject = _gPart end)
-
-    -- Запоминаем позицию призрака (НО НЕ ДВИГАЕМ ТЕЛО!)
-    _gCF = _gPart.CFrame
+    _pCall(function() cam.CameraSubject = _ghostPart end)
+    _ghostCF = _ghostPart.CFrame
 end
 
--- ─── Уничтожение призрака ───
-local function _killG(teleport)
-    local finalCF = _gCF
+local function _killGhost(doTeleport)
+    local finalCF = _ghostCF
 
-    for _, v in pairs(_bM) do pcall(function() v:Destroy() end) end
-    _bM = {}
+    for _, v in pairs(_ghostMovers) do _pCall(function() v:Destroy() end) end
+    _ghostMovers = {}
 
-    if _gPart then
-        pcall(function() _gPart:Destroy() end)
-        _gPart = nil
+    if _ghostPart then
+        _pCall(function() _ghostPart:Destroy() end)
+        _ghostPart = nil
     end
 
-    -- Восстановить камеру
-    pcall(function()
-        if _hu then workspace.CurrentCamera.CameraSubject = _hu end
+    _pCall(function()
+        if _hum then workspace.CurrentCamera.CameraSubject = _hum end
     end)
 
-    _gActive = false
+    _ghostActive = false
 
-    -- Телепортация ТОЛЬКО если указано
-    if teleport and finalCF and _rt and _rt.Parent then
-        pcall(function()
-            -- Обнуляем velocity ВСЕХ частей ПЕРЕД телепортацией
-            for _, v in ipairs(_ch:GetDescendants()) do
+    if doTeleport and finalCF and _rootPart and _rootPart.Parent then
+        _pCall(function()
+            for _, v in ipairs(_char:GetDescendants()) do
                 if v:IsA("BasePart") then
-                    pcall(function()
-                        v.AssemblyLinearVelocity = Vector3.zero
-                        v.AssemblyAngularVelocity = Vector3.zero
+                    _pCall(function()
+                        v.AssemblyLinearVelocity = _v3z
+                        v.AssemblyAngularVelocity = _v3z
                     end)
                 end
             end
-            -- Телепортируем root
-            _rt.CFrame = finalCF
-            _rt.AssemblyLinearVelocity = Vector3.zero
-            _rt.AssemblyAngularVelocity = Vector3.zero
+            _rootPart.CFrame = finalCF
+            _rootPart.AssemblyLinearVelocity = _v3z
+            _rootPart.AssemblyAngularVelocity = _v3z
         end)
     end
 
     return finalCF
 end
 
--- ─── Выход из рагдолла ───
-local function _exitR()
-    if _exiting then return end
-    _exiting = true
+local function _exitRagdoll()
+    if _exitingRag then return end
+    _exitingRag = true
 
-    if not (_hu and _ch and _rt) then
-        _killG(false)
-        _exiting = false
-        _rActive = false
+    if not (_hum and _char and _rootPart) then
+        _killGhost(false)
+        _exitingRag = false
+        _ragActive = false
         return
     end
 
-    if _hu.Health <= 0 then
-        _killG(false)
-        _exiting = false
-        _rActive = false
+    if _hum.Health <= 0 then
+        _killGhost(false)
+        _exitingRag = false
+        _ragActive = false
         return
     end
 
-    -- Шаг 1: Убить призрака И телепортировать тело к нему
-    local finalCF = _killG(true)
+    local finalCF = _killGhost(true)
 
-    -- Шаг 2: PlatformStand off
-    pcall(function() _hu.PlatformStand = false end)
+    _pCall(function() _hum.PlatformStand = false end)
+    _nukeConstraints()
+    _restoreMotors()
 
-    -- Шаг 3: Убить рагдолл-констрейнты
-    _nukC()
-
-    -- Шаг 4: Восстановить моторы
-    _restM()
-
-    -- Шаг 5: Разморозить
-    for _, v in ipairs(_ch:GetDescendants()) do
+    for _, v in ipairs(_char:GetDescendants()) do
         if v:IsA("BasePart") then
-            pcall(function() v.Anchored = false end)
+            _pCall(function() v.Anchored = false end)
         end
     end
 
-    -- Шаг 6: GettingUp
-    pcall(function() _hu:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    _pCall(function() _hum:ChangeState(_enumHS.GettingUp) end)
 
-    -- Шаг 7: Подстраховка 60мс
-    task.delay(0.06 + _δ(), function()
-        if not _Σ.ar then _exiting = false _rActive = false return end
-        pcall(function()
-            if _hu and _hu.Health > 0 then
-                _hu.PlatformStand = false
-                _nukC()
-                _restM()
-                -- Повторная телепортация если нужно
-                if finalCF and _rt and _rt.Parent then
-                    local dist = (_rt.Position - finalCF.Position).Magnitude
+    _tDelay(0.06 + _jitter(), function()
+        if not CFG.antiRagdoll then _exitingRag = false _ragActive = false return end
+        _pCall(function()
+            if _hum and _hum.Health > 0 then
+                _hum.PlatformStand = false
+                _nukeConstraints()
+                _restoreMotors()
+                if finalCF and _rootPart and _rootPart.Parent then
+                    local dist = (_rootPart.Position - finalCF.Position).Magnitude
                     if dist > 3 then
-                        _rt.CFrame = finalCF
-                        _rt.AssemblyLinearVelocity = Vector3.zero
+                        _rootPart.CFrame = finalCF
+                        _rootPart.AssemblyLinearVelocity = _v3z
                     end
                 end
-                _hu:ChangeState(Enum.HumanoidStateType.Running)
+                _hum:ChangeState(_enumHS.Running)
             end
         end)
     end)
 
-    -- Шаг 8: Финальная страховка 200мс
-    task.delay(0.2 + _δ(), function()
-        if not _Σ.ar then _exiting = false _rActive = false return end
-        pcall(function()
-            if _hu and _hu.Health > 0 then
-                _hu.PlatformStand = false
-                local st = _hu:GetState()
-                if _isR(st) or st == Enum.HumanoidStateType.PlatformStanding then
-                    _nukC()
-                    _restM()
-                    _hu:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    task.delay(0.06, function()
-                        pcall(function() _hu:ChangeState(Enum.HumanoidStateType.Running) end)
+    _tDelay(0.2 + _jitter(), function()
+        if not CFG.antiRagdoll then _exitingRag = false _ragActive = false return end
+        _pCall(function()
+            if _hum and _hum.Health > 0 then
+                _hum.PlatformStand = false
+                local st = _hum:GetState()
+                if _isRagdoll(st) or st == _enumHS.PlatformStanding then
+                    _nukeConstraints()
+                    _restoreMotors()
+                    _hum:ChangeState(_enumHS.GettingUp)
+                    _tDelay(0.06, function()
+                        _pCall(function() _hum:ChangeState(_enumHS.Running) end)
                     end)
                 end
-                if not _gActive then
-                    workspace.CurrentCamera.CameraSubject = _hu
+                if not _ghostActive then
+                    workspace.CurrentCamera.CameraSubject = _hum
                 end
             end
         end)
-        _exiting = false
-        _rActive = false
+        _exitingRag = false
+        _ragActive = false
     end)
 
-    -- Шаг 9: Абсолютная страховка 500мс
-    task.delay(0.5 + _δ(), function()
-        pcall(function()
-            if _hu and _hu.Health > 0 and not _gActive then
-                _hu.PlatformStand = false
-                workspace.CurrentCamera.CameraSubject = _hu
-                -- Финальная проверка позиции
-                if finalCF and _rt and _rt.Parent then
-                    local dist = (_rt.Position - finalCF.Position).Magnitude
-                    if dist > 5 then
-                        _rt.CFrame = finalCF
-                    end
+    _tDelay(0.5 + _jitter(), function()
+        _pCall(function()
+            if _hum and _hum.Health > 0 and not _ghostActive then
+                _hum.PlatformStand = false
+                workspace.CurrentCamera.CameraSubject = _hum
+                if finalCF and _rootPart and _rootPart.Parent then
+                    local dist = (_rootPart.Position - finalCF.Position).Magnitude
+                    if dist > 5 then _rootPart.CFrame = finalCF end
                 end
             end
         end)
-        _exiting = false
-        _rActive = false
+        _exitingRag = false
+        _ragActive = false
     end)
 end
 
--- ─── Детекция начала рагдолла ───
-local function _onRS()
-    if _rActive or _exiting then return end
-    if not (_hu and _hu.Health > 0) then return end
-    _rActive = true
-    _rStart = tick()
+local function _onRagdollStart()
+    if _ragActive or _exitingRag then return end
+    if not (_hum and _hum.Health > 0) then return end
+    _ragActive = true
+    _ragStart = tick()
 
-    -- Задержка перед созданием призрака
-    task.delay(0.03 + _δ(), function()
-        if not _Σ.ar then _rActive = false return end
-        if not _rActive then return end
-        if _hu and _hu.Health <= 0 then _rActive = false return end
-        _spawnG()
+    _tDelay(0.03 + _jitter(), function()
+        if not CFG.antiRagdoll then _ragActive = false return end
+        if not _ragActive then return end
+        if _hum and _hum.Health <= 0 then _ragActive = false return end
+        _spawnGhost()
     end)
 end
 
--- ─── Проверка конца рагдолла ───
-local function _chkEnd()
-    if not _rActive then return end
-    if _exiting then return end
-    if not (_hu and _ch) then return end
+local function _checkRagdollEnd()
+    if not _ragActive then return end
+    if _exitingRag then return end
+    if not (_hum and _char) then return end
 
-    -- Если умерли — отмена
-    if _hu.Health <= 0 then
-        _killG(false)
-        _rActive = false
+    if _hum.Health <= 0 then
+        _killGhost(false)
+        _ragActive = false
         return
     end
 
-    -- Таймаут
-    if tick() - _rStart > _rTimeout then
-        _exitR()
+    if tick() - _ragStart > _ragTimeout then
+        _exitRagdoll()
         return
     end
 
-    local st = _hu:GetState()
+    local st = _hum:GetState()
     local ps = false
-    pcall(function() ps = _hu.PlatformStand end)
+    _pCall(function() ps = _hum.PlatformStand end)
 
-    -- Рагдолл закончился ЕСТЕСТВЕННО?
-    if not _isR(st) and st ~= Enum.HumanoidStateType.PlatformStanding and not ps then
-        -- Подтверждение через 50мс (не ложное срабатывание)
-        task.delay(0.05, function()
-            if not _rActive or _exiting then return end
-            if not _hu then return end
-            if _hu.Health <= 0 then _killG(false) _rActive = false return end
-            local st2 = _hu:GetState()
+    if not _isRagdoll(st) and st ~= _enumHS.PlatformStanding and not ps then
+        _tDelay(0.05, function()
+            if not _ragActive or _exitingRag then return end
+            if not _hum then return end
+            if _hum.Health <= 0 then _killGhost(false) _ragActive = false return end
+            local st2 = _hum:GetState()
             local ps2 = false
-            pcall(function() ps2 = _hu.PlatformStand end)
-            if not _isR(st2) and st2 ~= Enum.HumanoidStateType.PlatformStanding and not ps2 then
-                _exitR()
+            _pCall(function() ps2 = _hum.PlatformStand end)
+            if not _isRagdoll(st2) and st2 ~= _enumHS.PlatformStanding and not ps2 then
+                _exitRagdoll()
             end
         end)
     end
 end
 
-local function _startAR()
-    if not (_ch and _hu) then return end
-    _snapM()
+local function _startAntiRagdoll()
+    if not (_char and _hum) then return end
+    _snapshotMotors()
 
-    local c1 = _hu.StateChanged:Connect(function(_, new)
-        if not _Σ.ar then return end
-        if _isR(new) or new == Enum.HumanoidStateType.PlatformStanding then
-            task.delay(_δ(), _onRS)
+    local c1 = _hum.StateChanged:Connect(function(_, newState)
+        if not CFG.antiRagdoll then return end
+        if _isRagdoll(newState) or newState == _enumHS.PlatformStanding then
+            _tDelay(_jitter(), _onRagdollStart)
         end
     end)
-    _rc[#_rc + 1] = c1
+    _ragConns[#_ragConns + 1] = c1
 
-    local c2 = _hu:GetPropertyChangedSignal("PlatformStand"):Connect(function()
-        if not _Σ.ar then return end
-        if _hu.PlatformStand and not _rActive then
-            task.delay(_δ(), _onRS)
+    local c2 = _hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+        if not CFG.antiRagdoll then return end
+        if _hum.PlatformStand and not _ragActive then
+            _tDelay(_jitter(), _onRagdollStart)
         end
     end)
-    _rc[#_rc + 1] = c2
+    _ragConns[#_ragConns + 1] = c2
 
-    local c3 = _ch.DescendantAdded:Connect(function(v)
-        if not _Σ.ar then return end
-        task.delay(_δ(), function()
-            pcall(function()
+    local c3 = _char.DescendantAdded:Connect(function(v)
+        if not CFG.antiRagdoll then return end
+        _tDelay(_jitter(), function()
+            _pCall(function()
                 if v:IsA("BallSocketConstraint") or v:IsA("HingeConstraint") or v:IsA("NoCollisionConstraint") then
-                    if not _rActive and not _exiting then _onRS() end
+                    if not _ragActive and not _exitingRag then _onRagdollStart() end
                 end
             end)
         end)
     end)
-    _rc[#_rc + 1] = c3
+    _ragConns[#_ragConns + 1] = c3
 
-    local c4 = _ch.DescendantRemoving:Connect(function(v)
-        if not _Σ.ar then return end
+    local c4 = _char.DescendantRemoving:Connect(function(v)
+        if not CFG.antiRagdoll then return end
         if v:IsA("Motor6D") then
-            local data = { n = v.Name, p = v.Parent, p0 = v.Part0, p1 = v.Part1, c0 = v.C0, c1 = v.C1 }
+            local data = { name = v.Name, par = v.Parent, p0 = v.Part0, p1 = v.Part1, c0 = v.C0, c1 = v.C1 }
             local found = false
-            for _, s in ipairs(_mS) do
-                if s.n == data.n and s.p == data.p then
+            for _, s in ipairs(_motorSnap) do
+                if s.name == data.name and s.par == data.par then
                     s.c0 = data.c0
                     s.c1 = data.c1
                     found = true
                     break
                 end
             end
-            if not found then _mS[#_mS + 1] = data end
-            if not _rActive and not _exiting then _onRS() end
+            if not found then _motorSnap[#_motorSnap + 1] = data end
+            if not _ragActive and not _exitingRag then _onRagdollStart() end
         end
     end)
-    _rc[#_rc + 1] = c4
+    _ragConns[#_ragConns + 1] = c4
 end
 
-local function _stopAR()
-    for _, c in ipairs(_rc) do pcall(function() c:Disconnect() end) end
-    _rc = {}
-    _killG(false)
-    _rActive = false
-    _exiting = false
-    for _, m in ipairs(_fM) do pcall(function() if m and m.Parent then m:Destroy() end end) end
-    _fM = {}
-    _mS = {}
+local function _stopAntiRagdoll()
+    for _, c in ipairs(_ragConns) do _pCall(function() c:Disconnect() end) end
+    _ragConns = {}
+    _killGhost(false)
+    _ragActive = false
+    _exitingRag = false
+    for _, m in ipairs(_fabricMotors) do _pCall(function() if m and m.Parent then m:Destroy() end end) end
+    _fabricMotors = {}
+    _motorSnap = {}
 end
 
 -- ═══════════ NO ANIMATIONS ═══════════
-local function _hkT(t)
-    if not t or _trk[t] then return end
-    _trk[t] = true
-    local c = t:GetPropertyChangedSignal("IsPlaying"):Connect(function()
-        if not _Σ.na then return end
-        if t.IsPlaying then
-            task.delay(_δ(), function()
-                pcall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
+local function _hookTrack(track)
+    if not track or _trackedAnims[track] then return end
+    _trackedAnims[track] = true
+    local c = track:GetPropertyChangedSignal("IsPlaying"):Connect(function()
+        if not CFG.noAnim then return end
+        if track.IsPlaying then
+            _tDelay(_jitter(), function()
+                _pCall(function() track:AdjustSpeed(0) track:AdjustWeight(0, 0) end)
             end)
         end
     end)
-    _ac[#_ac + 1] = c
-    if _Σ.na and t.IsPlaying then
-        pcall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
+    _animConns[#_animConns + 1] = c
+    if CFG.noAnim and track.IsPlaying then
+        _pCall(function() track:AdjustSpeed(0) track:AdjustWeight(0, 0) end)
     end
 end
 
-local function _sT()
-    if not _an then return end
-    pcall(function()
-        for _, t in ipairs(_an:GetPlayingAnimationTracks()) do
-            pcall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
+local function _stopAllTracks()
+    if not _animator then return end
+    _pCall(function()
+        for _, t in ipairs(_animator:GetPlayingAnimationTracks()) do
+            _pCall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
         end
     end)
 end
 
-local function _hkA()
-    if not _an then return end
-    pcall(function()
-        local c = _an.AnimationPlayed:Connect(function(t)
-            _hkT(t)
-            if _Σ.na then
-                task.delay(_δ(), function()
-                    pcall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
+local function _hookAnimator()
+    if not _animator then return end
+    _pCall(function()
+        local c = _animator.AnimationPlayed:Connect(function(t)
+            _hookTrack(t)
+            if CFG.noAnim then
+                _tDelay(_jitter(), function()
+                    _pCall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
                 end)
             end
         end)
-        _ac[#_ac + 1] = c
+        _animConns[#_animConns + 1] = c
     end)
-    if _hu then
-        for _, e in ipairs({"Running", "Jumping", "Climbing", "Swimming", "FreeFalling"}) do
-            pcall(function()
-                local c = _hu[e]:Connect(function()
-                    if _Σ.na then task.defer(_sT) end
+    if _hum then
+        for _, evt in ipairs({"Running", "Jumping", "Climbing", "Swimming", "FreeFalling"}) do
+            _pCall(function()
+                local c = _hum[evt]:Connect(function()
+                    if CFG.noAnim then _tDefer(_stopAllTracks) end
                 end)
-                _ac[#_ac + 1] = c
+                _animConns[#_animConns + 1] = c
             end)
         end
-        local c = _hu.StateChanged:Connect(function()
-            if _Σ.na then task.defer(_sT) end
+        local c = _hum.StateChanged:Connect(function()
+            if CFG.noAnim then _tDefer(_stopAllTracks) end
         end)
-        _ac[#_ac + 1] = c
+        _animConns[#_animConns + 1] = c
     end
-    pcall(function()
-        for _, t in ipairs(_an:GetPlayingAnimationTracks()) do _hkT(t) end
+    _pCall(function()
+        for _, t in ipairs(_animator:GetPlayingAnimationTracks()) do _hookTrack(t) end
     end)
 end
-local function _startNA() _hkA() end
-local function _stopNA()
-    for _, c in ipairs(_ac) do pcall(function() c:Disconnect() end) end
-    _ac = {}
-    for t in pairs(_trk) do
-        pcall(function() if t and t.IsPlaying then t:AdjustSpeed(1) t:AdjustWeight(1, 0.1) end end)
+
+local function _startNoAnim() _hookAnimator() end
+local function _stopNoAnim()
+    for _, c in ipairs(_animConns) do _pCall(function() c:Disconnect() end) end
+    _animConns = {}
+    for t in pairs(_trackedAnims) do
+        _pCall(function() if t and t.IsPlaying then t:AdjustSpeed(1) t:AdjustWeight(1, 0.1) end end)
     end
-    _trk = {}
+    _trackedAnims = {}
 end
 
 -- ═══════════ HEARTBEAT ═══════════
-_hb = _RS.Heartbeat:Connect(function()
-    _fc = _fc + 1
-    if not (_ch and _ch.Parent) then _ref() return end
-    if not (_hu and _hu.Health > 0) then
-        -- Если умерли и призрак есть — убить призрака
-        if _gActive then _killG(false) _rActive = false end
+_heartbeatC = RunService.Heartbeat:Connect(function()
+    _frameCount = _frameCount + 1
+    if not (_char and _char.Parent) then _refreshChar() return end
+    if not (_hum and _hum.Health > 0) then
+        if _ghostActive then _killGhost(false) _ragActive = false end
         return
     end
 
-    -- Ghost управление КАЖДЫЙ кадр
-    if _Σ.ar and _gActive then
-        _ctrlG()
+    if CFG.antiRagdoll and _ghostActive then
+        _controlGhost()
     end
 
-    -- Проверка рагдолла каждые 3 кадра
-    if _Σ.ar and _fc % 3 == 0 then
-        _chkEnd()
-
-        -- Fallback: призрак мёртв но рагдолл ещё активен
-        if _rActive and not (_gPart and _gPart.Parent) then
-            _gActive = false
-            local st = _hu:GetState()
+    if CFG.antiRagdoll and _frameCount % 3 == 0 then
+        _checkRagdollEnd()
+        if _ragActive and not (_ghostPart and _ghostPart.Parent) then
+            _ghostActive = false
+            local st = _hum:GetState()
             local ps = false
-            pcall(function() ps = _hu.PlatformStand end)
-            if _isR(st) or st == Enum.HumanoidStateType.PlatformStanding or ps then
-                _spawnG()
+            _pCall(function() ps = _hum.PlatformStand end)
+            if _isRagdoll(st) or st == _enumHS.PlatformStanding or ps then
+                _spawnGhost()
             else
-                _rActive = false
+                _ragActive = false
             end
         end
     end
 
-    -- NoAnim
-    if _Σ.na and _fc % 3 == 0 then _sT() end
+    if CFG.noAnim and _frameCount % 3 == 0 then _stopAllTracks() end
 end)
 
--- ═══════════ РЕСПАВН ═══════════
-_lp.CharacterAdded:Connect(function()
-    task.wait(_ρ(0.3, 0.5))
-    _killG(false)
-    _rActive = false
-    _exiting = false
-    _ref()
-    task.wait(_ρ(0.15, 0.25))
-    if _Σ.ar then _stopAR() _startAR() end
-    if _Σ.na then _stopNA() task.wait(0.12) _startNA() end
+-- ═══════════ RESPAWN ═══════════
+LP.CharacterAdded:Connect(function()
+    _tWait(_rF(0.3, 0.5))
+    _killGhost(false)
+    _ragActive = false
+    _exitingRag = false
+    _refreshChar()
+    _tWait(_rF(0.15, 0.25))
+    if CFG.antiRagdoll then _stopAntiRagdoll() _startAntiRagdoll() end
+    if CFG.noAnim then _stopNoAnim() _tWait(0.12) _startNoAnim() end
 end)
 
--- ═══════════════════════════════════════════
--- ═══════════ GUI v14.0 WRAITH ═════════════
--- ═══════════════════════════════════════════
 
-local _gn = _μ(18)
-for _, g in ipairs(_pg:GetChildren()) do
-    if g:IsA("ScreenGui") then
-        pcall(function() if g.Name ~= "GranzHubGUI" then return end g:Destroy() end)
+-- ══════════════════════════════════════════════════════
+-- ══════════════ GUI v15.0 SPECTRE ════════════════════
+-- ══════════════════════════════════════════════════════
+
+-- Cleanup old GUI
+local _guiName = _genID(20)
+for _, g in ipairs(PG:GetChildren()) do
+    _pCall(function()
+        if g:IsA("ScreenGui") and g:GetAttribute("_spectreTag") then
+            g:Destroy()
+        end
+    end)
+end
+
+local SG = _iNew("ScreenGui")
+SG.Name = _guiName
+SG:SetAttribute("_spectreTag", true)
+SG.ResetOnSpawn = false
+SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+SG.DisplayOrder = _rI(2, 8)
+SG.IgnoreGuiInset = false
+SG.Parent = PG
+
+-- ═══ PALETTE ═══
+local P = {
+    bg      = _c3(8, 8, 14),
+    bgCard  = _c3(14, 14, 26),
+    bgDeep  = _c3(6, 6, 12),
+    header  = _c3(10, 10, 20),
+
+    accent1 = _c3(110, 60, 255),   -- Purple
+    accent2 = _c3(30, 175, 255),   -- Cyan
+    accent3 = _c3(255, 55, 80),    -- Red
+    accent4 = _c3(255, 180, 40),   -- Gold
+    accent5 = _c3(40, 255, 130),   -- Green
+    accent6 = _c3(255, 90, 200),   -- Pink
+
+    textW   = _c3(230, 230, 245),
+    textD   = _c3(70, 70, 95),
+    textG   = _c3(50, 255, 110),
+
+    toggleOff    = _c3(24, 24, 38),
+    toggleKnobOff= _c3(90, 90, 110),
+    border       = _c3(30, 30, 48),
+    glow         = _c3(110, 60, 255),
+}
+
+-- ═══ HELPERS ═══
+local function corner(parent, radius)
+    local c = _iNew("UICorner")
+    c.CornerRadius = _udim(0, radius or 12)
+    c.Parent = parent
+    return c
+end
+
+local function stroke(parent, col, thick, transp)
+    local s = _iNew("UIStroke")
+    s.Color = col or P.border
+    s.Thickness = thick or 1
+    s.Transparency = transp or 0.5
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = parent
+    return s
+end
+
+local function ti(dur, style, dir)
+    return _twInfo(dur or 0.3, style or _enumES.Quint, dir or _enumED.Out)
+end
+
+local function tween(obj, info, props)
+    return TweenService:Create(obj, info, props)
+end
+
+local function gradient(parent, colors, rotation, transparency)
+    local g = _iNew("UIGradient")
+    g.Color = colors or _csNew{_csk(0, P.accent1), _csk(1, P.accent2)}
+    if rotation then g.Rotation = rotation end
+    if transparency then g.Transparency = transparency end
+    g.Parent = parent
+    return g
+end
+
+-- ═══ DRAGGING SYSTEM (Modern — replaces deprecated Draggable) ═══
+local function makeDraggable(frame, handle)
+    local dragging = false
+    local dragStart, startPos
+
+    handle = handle or frame
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
+                         input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            local newPos = _ud2(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+            tween(frame, ti(0.08, _enumES.Quad), {Position = newPos}):Play()
+        end
+    end)
+end
+
+-- ═══ BLUR BACKGROUND ═══
+local function createBlurBG(parent)
+    -- Multiple layered transparent frames for depth
+    for i = 1, 3 do
+        local blur = _iNew("Frame")
+        blur.Name = _genID(4)
+        blur.Size = _ud2(1, 8 * i, 1, 8 * i)
+        blur.Position = _ud2(0, -4 * i, 0, -4 * i)
+        blur.BackgroundColor3 = _c3(0, 0, 0)
+        blur.BackgroundTransparency = 0.75 + i * 0.06
+        blur.BorderSizePixel = 0
+        blur.ZIndex = -i
+        blur.Parent = parent
+        corner(blur, 28 + i * 2)
     end
 end
 
-local SG = Instance.new("ScreenGui")
-SG.Name = _gn
-SG.ResetOnSpawn = false
-SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-SG.DisplayOrder = _ι(2, 10)
-SG.Parent = _pg
-
--- ═══ PALETTE ═══
-local Φ = {
-    bg     = Color3.fromRGB(5, 5, 10),
-    bg2    = Color3.fromRGB(10, 10, 18),
-    pnl    = Color3.fromRGB(14, 14, 24),
-    hdr    = Color3.fromRGB(8, 8, 16),
-
-    a1     = Color3.fromRGB(130, 70, 255),
-    a2     = Color3.fromRGB(40, 185, 255),
-    a3     = Color3.fromRGB(255, 65, 65),
-    a4     = Color3.fromRGB(255, 185, 40),
-    a5     = Color3.fromRGB(55, 255, 140),
-    a6     = Color3.fromRGB(255, 105, 190),
-
-    tw     = Color3.fromRGB(225, 225, 238),
-    td     = Color3.fromRGB(75, 75, 95),
-    tg     = Color3.fromRGB(60, 255, 120),
-
-    tOff   = Color3.fromRGB(28, 28, 42),
-    tKOff  = Color3.fromRGB(100, 100, 120),
-    brd    = Color3.fromRGB(32, 32, 50),
-}
-
-local function mc(p, r) local c = Instance.new("UICorner", p) c.CornerRadius = UDim.new(0, r or 12) return c end
-local function ms(p, col, th, tr)
-    local s = Instance.new("UIStroke")
-    s.Color = col or Φ.brd; s.Thickness = th or 1; s.Transparency = tr or 0.5
-    s.Parent = p; return s
-end
-local function tw(d, s, dir) return TweenInfo.new(d or 0.3, s or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out) end
-local function twn(obj, inf, props) return _TW:Create(obj, inf, props) end
-
 -- ═══ MAIN FRAME ═══
-local MF = Instance.new("Frame")
-MF.Name = _μ(4)
-MF.Size = UDim2.new(0, 380, 0, 520)
-MF.Position = UDim2.new(0.5, -190, 0.5, -260)
-MF.BackgroundColor3 = Φ.bg
-MF.BackgroundTransparency = 0
+local MF = _iNew("Frame")
+MF.Name = _genID(6)
+MF.Size = _ud2(0, 400, 0, 560)
+MF.Position = _ud2(0.5, -200, 0.5, -280)
+MF.BackgroundColor3 = P.bg
+MF.BackgroundTransparency = 0.02
 MF.BorderSizePixel = 0
 MF.Active = true
-MF.Draggable = true
 MF.ClipsDescendants = true
 MF.Parent = SG
-mc(MF, 26)
+corner(MF, 28)
 
-local MFS = ms(MF, Φ.a1, 1.5, 0.55)
+local mainStroke = stroke(MF, P.accent1, 1.5, 0.5)
+createBlurBG(MF)
 
--- Тени (4 слоя для глубины)
-for i = 1, 4 do
-    local sh = Instance.new("ImageLabel")
-    sh.Name = _μ(2)
-    sh.Size = UDim2.new(1, 15 + i * 14, 1, 15 + i * 14)
-    sh.Position = UDim2.new(0, -7.5 - i * 7, 0, -7.5 - i * 7)
-    sh.BackgroundTransparency = 1
-    sh.Image = "rbxassetid://6015897843"
-    sh.ImageColor3 = Color3.new(0, 0, 0)
-    sh.ImageTransparency = 0.45 + i * 0.11
-    sh.ScaleType = Enum.ScaleType.Slice
-    sh.SliceCenter = Rect.new(49, 49, 450, 450)
-    sh.ZIndex = -i
-    sh.Parent = MF
-end
-
--- Glow орбы (6 штук, разные цвета)
-local orbs = {}
-local orbData = {
-    {UDim2.new(0, -55, 0, -55),  Φ.a1, 200, 0.94},
-    {UDim2.new(1, -90, 1, -110), Φ.a2, 180, 0.94},
-    {UDim2.new(0.2, 0, 0.3, 0), Φ.a3, 110, 0.96},
-    {UDim2.new(0.75, 0, 0.1, 0),Φ.a5,  95, 0.96},
-    {UDim2.new(0.5, -50, 0.65, 0), Φ.a6, 130, 0.95},
-    {UDim2.new(0.1, 0, 0.8, 0), Φ.a4, 80, 0.97},
+-- ═══ AMBIENT GLOW ORBS ═══
+local orbsData = {
+    {_ud2(0, -60, 0, -60),   P.accent1, 220, 0.93},
+    {_ud2(1, -100, 1, -120), P.accent2, 200, 0.93},
+    {_ud2(0.15, 0, 0.35, 0), P.accent3, 120, 0.95},
+    {_ud2(0.8, 0, 0.08, 0),  P.accent5, 100, 0.96},
+    {_ud2(0.5, -60, 0.7, 0), P.accent6, 140, 0.94},
+    {_ud2(0.05, 0, 0.82, 0), P.accent4, 90,  0.96},
 }
-for i, od in ipairs(orbData) do
-    local o = Instance.new("Frame")
-    o.Name = _μ(2)
-    o.Size = UDim2.new(0, od[3], 0, od[3])
+local orbFrames = {}
+
+for i, od in ipairs(orbsData) do
+    local o = _iNew("Frame")
+    o.Name = _genID(3)
+    o.Size = _ud2(0, od[3], 0, od[3])
     o.Position = od[1]
     o.BackgroundColor3 = od[2]
     o.BackgroundTransparency = od[4]
     o.BorderSizePixel = 0
     o.ZIndex = 0
     o.Parent = MF
-    mc(o, od[3])
-    orbs[i] = o
+    corner(o, _mFloor(od[3] / 2))
+    orbFrames[i] = o
 end
 
--- Точечная сетка (subtle)
-for r = 0, 12 do
-    for c = 0, 8 do
-        local d = Instance.new("Frame")
-        d.Size = UDim2.new(0, 1, 0, 1)
-        d.Position = UDim2.new(0, 12 + c * 42, 0, 70 + r * 38)
-        d.BackgroundColor3 = Φ.tw
-        d.BackgroundTransparency = 0.96
+-- Subtle dot grid
+for row = 0, 14 do
+    for col = 0, 9 do
+        local d = _iNew("Frame")
+        d.Size = _ud2(0, 1, 0, 1)
+        d.Position = _ud2(0, 14 + col * 40, 0, 72 + row * 36)
+        d.BackgroundColor3 = P.textW
+        d.BackgroundTransparency = 0.965
         d.BorderSizePixel = 0
         d.ZIndex = 0
         d.Parent = MF
-        mc(d, 1)
     end
 end
 
 -- ═══ HEADER ═══
-local HD = Instance.new("Frame")
-HD.Name = _μ(3)
-HD.Size = UDim2.new(1, 0, 0, 68)
-HD.BackgroundColor3 = Φ.hdr
-HD.BackgroundTransparency = 0.08
+local HD = _iNew("Frame")
+HD.Name = _genID(4)
+HD.Size = _ud2(1, 0, 0, 72)
+HD.BackgroundColor3 = P.header
+HD.BackgroundTransparency = 0.05
 HD.BorderSizePixel = 0
 HD.ZIndex = 5
 HD.Parent = MF
-mc(HD, 26)
+corner(HD, 28)
 
--- Header bottom fix
-local HBF = Instance.new("Frame")
-HBF.Size = UDim2.new(1, 0, 0, 26)
-HBF.Position = UDim2.new(0, 0, 1, -26)
-HBF.BackgroundColor3 = Φ.hdr
-HBF.BackgroundTransparency = 0.08
-HBF.BorderSizePixel = 0
-HBF.ZIndex = 5
-HBF.Parent = HD
+-- Header bottom patch
+local HDP = _iNew("Frame")
+HDP.Size = _ud2(1, 0, 0, 28)
+HDP.Position = _ud2(0, 0, 1, -28)
+HDP.BackgroundColor3 = P.header
+HDP.BackgroundTransparency = 0.05
+HDP.BorderSizePixel = 0
+HDP.ZIndex = 5
+HDP.Parent = HD
 
--- Тройная градиентная линия
-local lineData = {
-    {0.92, 3, 0.15},
-    {0.65, 1.5, 0.45},
-    {0.4, 1, 0.7},
+-- Make header the drag handle
+makeDraggable(MF, HD)
+
+-- Multi-layer gradient separator
+local sepLines = {
+    {0.95, 3,   0.1},
+    {0.7,  1.5, 0.4},
+    {0.45, 1,   0.65},
 }
-local mainLine
-for idx, ld in ipairs(lineData) do
-    local hl = Instance.new("Frame")
-    hl.Name = _μ(2)
-    hl.Size = UDim2.new(ld[1], 0, 0, ld[2])
-    hl.Position = UDim2.new((1 - ld[1]) / 2, 0, 1, (idx - 1) * 4)
-    hl.BackgroundColor3 = Φ.tw
-    hl.BackgroundTransparency = ld[3]
-    hl.BorderSizePixel = 0
-    hl.ZIndex = 6
-    hl.Parent = HD
-    mc(hl, 3)
+for idx, sl in ipairs(sepLines) do
+    local line = _iNew("Frame")
+    line.Name = _genID(3)
+    line.Size = _ud2(sl[1], 0, 0, sl[2])
+    line.Position = _ud2((1 - sl[1]) / 2, 0, 1, (idx - 1) * 4)
+    line.BackgroundColor3 = P.textW
+    line.BackgroundTransparency = sl[3]
+    line.BorderSizePixel = 0
+    line.ZIndex = 6
+    line.Parent = HD
+    corner(line, 3)
 
-    local hlg = Instance.new("UIGradient")
-    hlg.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Φ.a1),
-        ColorSequenceKeypoint.new(0.15, Φ.a2),
-        ColorSequenceKeypoint.new(0.35, Φ.a5),
-        ColorSequenceKeypoint.new(0.55, Φ.a4),
-        ColorSequenceKeypoint.new(0.75, Φ.a6),
-        ColorSequenceKeypoint.new(1, Φ.a3),
+    local lineGrad = gradient(line, _csNew{
+        _csk(0, P.accent1),
+        _csk(0.2, P.accent2),
+        _csk(0.4, P.accent5),
+        _csk(0.6, P.accent4),
+        _csk(0.8, P.accent6),
+        _csk(1, P.accent3),
+    })
+    lineGrad.Transparency = _nsNew{
+        _nsk(0, 0.85),
+        _nsk(0.15, 0),
+        _nsk(0.85, 0),
+        _nsk(1, 0.85),
     }
-    hlg.Transparency = NumberSequence.new{
-        NumberSequenceKeypoint.new(0, 0.8),
-        NumberSequenceKeypoint.new(0.15, 0),
-        NumberSequenceKeypoint.new(0.85, 0),
-        NumberSequenceKeypoint.new(1, 0.8),
-    }
-    hlg.Parent = hl
 
     if idx == 1 then
-        mainLine = hl
-        task.spawn(function()
-            local off = 0
+        _tSpawn(function()
+            local offset = 0
             while SG and SG.Parent do
-                off = (off + 0.0015) % 1
-                pcall(function()
-                    hlg.Offset = Vector2.new(math.sin(off * math.pi * 2) * 0.5, 0)
+                offset = (offset + 0.002) % 1
+                _pCall(function()
+                    lineGrad.Offset = Vector2.new(_mSin(offset * _mPi * 2) * 0.5, 0)
                 end)
-                task.wait(0.02)
+                _tWait(0.025)
             end
         end)
     end
 end
 
--- Лого — тройной кольцевой
-local logoRings = {}
+-- Logo (layered rings with inner glow)
+local logoContainer = _iNew("Frame")
+logoContainer.Size = _ud2(0, 52, 0, 52)
+logoContainer.Position = _ud2(0, 14, 0.5, -26)
+logoContainer.BackgroundTransparency = 1
+logoContainer.ZIndex = 6
+logoContainer.Parent = HD
+
+local logoRingFrames = {}
 for i = 1, 3 do
-    local sz = 48 - (i - 1) * 8
-    local ring = Instance.new("Frame")
-    ring.Name = _μ(2)
-    ring.Size = UDim2.new(0, sz, 0, sz)
-    ring.Position = UDim2.new(0, 14 + (48 - sz) / 2, 0.5, -sz / 2)
-    ring.BackgroundColor3 = Φ.a1
-    ring.BackgroundTransparency = 0.8 + (i - 1) * 0.03
+    local sz = 52 - (i - 1) * 10
+    local ring = _iNew("Frame")
+    ring.Name = _genID(3)
+    ring.Size = _ud2(0, sz, 0, sz)
+    ring.AnchorPoint = Vector2.new(0.5, 0.5)
+    ring.Position = _ud2(0.5, 0, 0.5, 0)
+    ring.BackgroundColor3 = P.accent1
+    ring.BackgroundTransparency = 0.78 + (i - 1) * 0.04
     ring.BorderSizePixel = 0
-    ring.ZIndex = 5 + i
-    ring.Parent = HD
-    mc(ring, sz / 2)
-    if i < 3 then ms(ring, Φ.a1, 1, 0.4 + i * 0.15) end
-    logoRings[i] = ring
+    ring.ZIndex = 6 + i
+    ring.Parent = logoContainer
+    corner(ring, _mFloor(sz / 2))
+    if i < 3 then stroke(ring, P.accent1, 1, 0.35 + i * 0.15) end
+    logoRingFrames[i] = ring
 end
 
-local logoTxt = Instance.new("TextLabel")
-logoTxt.Size = UDim2.new(1, 0, 1, 0)
-logoTxt.BackgroundTransparency = 1
-logoTxt.Text = "G"
-logoTxt.TextColor3 = Φ.tw
-logoTxt.TextSize = 15
-logoTxt.Font = Enum.Font.GothamBlack
-logoTxt.ZIndex = 9
-logoTxt.Parent = logoRings[3]
+-- Inner glow
+local logoGlow = _iNew("Frame")
+logoGlow.Size = _ud2(0, 18, 0, 18)
+logoGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+logoGlow.Position = _ud2(0.5, 0, 0.5, 0)
+logoGlow.BackgroundColor3 = P.accent1
+logoGlow.BackgroundTransparency = 0.45
+logoGlow.ZIndex = 10
+logoGlow.Parent = logoContainer
+corner(logoGlow, 9)
+
+local logoText = _iNew("TextLabel")
+logoText.Size = _ud2(1, 0, 1, 0)
+logoText.BackgroundTransparency = 1
+logoText.Text = "G"
+logoText.TextColor3 = P.textW
+logoText.TextSize = 14
+logoText.Font = Enum.Font.GothamBlack
+logoText.ZIndex = 11
+logoText.Parent = logoRingFrames[3]
 
 -- Title
-local ttl = Instance.new("TextLabel")
-ttl.Size = UDim2.new(0, 140, 0, 22)
-ttl.Position = UDim2.new(0, 70, 0, 10)
-ttl.BackgroundTransparency = 1
-ttl.RichText = true
-ttl.Text = '<font color="#8246FF">GRANZ</font> <font color="#FFFFFF">HUB</font>'
-ttl.TextSize = 18
-ttl.Font = Enum.Font.GothamBlack
-ttl.TextXAlignment = Enum.TextXAlignment.Left
-ttl.ZIndex = 6
-ttl.Parent = HD
+local titleLbl = _iNew("TextLabel")
+titleLbl.Size = _ud2(0, 160, 0, 24)
+titleLbl.Position = _ud2(0, 76, 0, 10)
+titleLbl.BackgroundTransparency = 1
+titleLbl.RichText = true
+titleLbl.Text = '<font color="#6E3CFF">GRANZ</font> <font color="#FFFFFF">HUB</font>'
+titleLbl.TextSize = 19
+titleLbl.Font = Enum.Font.GothamBlack
+titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+titleLbl.ZIndex = 6
+titleLbl.Parent = HD
 
 -- Subtitle
-local stl = Instance.new("TextLabel")
-stl.Size = UDim2.new(0, 220, 0, 14)
-stl.Position = UDim2.new(0, 70, 0, 34)
-stl.BackgroundTransparency = 1
-stl.Text = "wraith · v14.0 · phantom ghost"
-stl.TextColor3 = Φ.td
-stl.TextSize = 9
-stl.Font = Enum.Font.GothamMedium
-stl.TextXAlignment = Enum.TextXAlignment.Left
-stl.ZIndex = 6
-stl.Parent = HD
+local subLbl = _iNew("TextLabel")
+subLbl.Size = _ud2(0, 240, 0, 14)
+subLbl.Position = _ud2(0, 76, 0, 36)
+subLbl.BackgroundTransparency = 1
+subLbl.Text = "spectre · v15.0 · phantom engine"
+subLbl.TextColor3 = P.textD
+subLbl.TextSize = 9
+subLbl.Font = Enum.Font.GothamMedium
+subLbl.TextXAlignment = Enum.TextXAlignment.Left
+subLbl.ZIndex = 6
+subLbl.Parent = HD
 
--- Бейджи (теперь с градиентным фоном)
-local badgeInfo = {
-    {"WRAITH", Φ.a1},
-    {"v6.0", Φ.a5},
-    {"2026", Φ.a2},
+-- Badges
+local badgeData = {
+    {"SPECTRE", P.accent1},
+    {"v7.0",   P.accent5},
+    {"GHOST",  P.accent2},
 }
-local bx = 70
-for _, bi in ipairs(badgeInfo) do
-    local bf = Instance.new("Frame")
-    bf.Size = UDim2.new(0, #bi[1] * 5.5 + 16, 0, 16)
-    bf.Position = UDim2.new(0, bx, 0, 50)
-    bf.BackgroundColor3 = bi[2]
+local bx = 76
+for _, bd in ipairs(badgeData) do
+    local bf = _iNew("Frame")
+    bf.Size = _ud2(0, #bd[1] * 5.8 + 16, 0, 17)
+    bf.Position = _ud2(0, bx, 0, 52)
+    bf.BackgroundColor3 = bd[2]
     bf.BackgroundTransparency = 0.88
     bf.BorderSizePixel = 0
     bf.ZIndex = 6
     bf.Parent = HD
-    mc(bf, 5)
-    ms(bf, bi[2], 0.5, 0.55)
+    corner(bf, 6)
+    stroke(bf, bd[2], 0.5, 0.6)
 
-    local bl = Instance.new("TextLabel")
-    bl.Size = UDim2.new(1, 0, 1, 0)
+    local bl = _iNew("TextLabel")
+    bl.Size = _ud2(1, 0, 1, 0)
     bl.BackgroundTransparency = 1
-    bl.Text = bi[1]
-    bl.TextColor3 = bi[2]
-    bl.TextSize = 7
+    bl.Text = bd[1]
+    bl.TextColor3 = bd[2]
+    bl.TextSize = 7.5
     bl.Font = Enum.Font.GothamBlack
     bl.ZIndex = 7
     bl.Parent = bf
 
-    bx = bx + #bi[1] * 5.5 + 20
+    bx = bx + #bd[1] * 5.8 + 21
 end
 
--- Кнопки
-local function mkBtn(pos, txt, bgC)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 38, 0, 38)
-    b.Position = pos
-    b.BackgroundColor3 = bgC
-    b.BackgroundTransparency = 0.35
-    b.Text = txt
-    b.TextColor3 = Φ.tw
-    b.TextSize = 15
-    b.Font = Enum.Font.GothamBold
-    b.BorderSizePixel = 0
-    b.AutoButtonColor = false
-    b.ZIndex = 6
-    b.Parent = HD
-    mc(b, 12)
+-- Header buttons
+local function makeHeaderBtn(pos, text, bgColor)
+    local btn = _iNew("TextButton")
+    btn.Size = _ud2(0, 40, 0, 40)
+    btn.Position = pos
+    btn.BackgroundColor3 = bgColor
+    btn.BackgroundTransparency = 0.4
+    btn.Text = text
+    btn.TextColor3 = P.textW
+    btn.TextSize = 15
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = false
+    btn.ZIndex = 6
+    btn.Parent = HD
+    corner(btn, 14)
 
-    b.MouseEnter:Connect(function()
-        twn(b, tw(0.2), {BackgroundTransparency = 0.1}):Play()
+    btn.MouseEnter:Connect(function()
+        tween(btn, ti(0.2), {BackgroundTransparency = 0.1, Size = _ud2(0, 42, 0, 42)}):Play()
     end)
-    b.MouseLeave:Connect(function()
-        twn(b, tw(0.2), {BackgroundTransparency = 0.35}):Play()
+    btn.MouseLeave:Connect(function()
+        tween(btn, ti(0.2), {BackgroundTransparency = 0.4, Size = _ud2(0, 40, 0, 40)}):Play()
     end)
-    return b
+    return btn
 end
 
-local MinB = mkBtn(UDim2.new(1, -90, 0, 15), "━", Color3.fromRGB(42, 42, 58))
-local ClsB = mkBtn(UDim2.new(1, -48, 0, 15), "✕", Color3.fromRGB(165, 30, 30))
+local MinBtn = makeHeaderBtn(_ud2(1, -94, 0, 16), "━", _c3(40, 40, 56))
+local ClsBtn = makeHeaderBtn(_ud2(1, -50, 0, 16), "✕", _c3(160, 30, 40))
 
--- ═══ CONTENT ═══
-local CT = Instance.new("ScrollingFrame")
-CT.Name = _μ(3)
-CT.Size = UDim2.new(1, -16, 1, -84)
-CT.Position = UDim2.new(0, 8, 0, 76)
+-- ═══ CONTENT SCROLL ═══
+local CT = _iNew("ScrollingFrame")
+CT.Name = _genID(4)
+CT.Size = _ud2(1, -18, 1, -90)
+CT.Position = _ud2(0, 9, 0, 80)
 CT.BackgroundTransparency = 1
 CT.BorderSizePixel = 0
-CT.ScrollBarThickness = 2
-CT.ScrollBarImageColor3 = Φ.a1
-CT.ScrollBarImageTransparency = 0.65
-CT.CanvasSize = UDim2.new(0, 0, 0, 0)
+CT.ScrollBarThickness = 3
+CT.ScrollBarImageColor3 = P.accent1
+CT.ScrollBarImageTransparency = 0.6
+CT.CanvasSize = _ud2(0, 0, 0, 0)
 CT.AutomaticCanvasSize = Enum.AutomaticSize.Y
 CT.ZIndex = 3
 CT.Parent = MF
 
-Instance.new("UIListLayout", CT).Padding = UDim.new(0, 7)
-CT:FindFirstChildOfClass("UIListLayout").SortOrder = Enum.SortOrder.LayoutOrder
+local listLayout = _iNew("UIListLayout")
+listLayout.Padding = _udim(0, 8)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = CT
 
-local pad = Instance.new("UIPadding", CT)
-pad.PaddingTop = UDim.new(0, 2)
-pad.PaddingBottom = UDim.new(0, 14)
+local ctPad = _iNew("UIPadding")
+ctPad.PaddingTop = _udim(0, 3)
+ctPad.PaddingBottom = _udim(0, 16)
+ctPad.PaddingLeft = _udim(0, 2)
+ctPad.PaddingRight = _udim(0, 2)
+ctPad.Parent = CT
 
--- ═══ MODULES v14 ═══
-local function createMod(icon, name, desc, order, acCol, tags)
-    local Mod = Instance.new("Frame")
-    Mod.Name = _μ(4)
-    Mod.Size = UDim2.new(1, 0, 0, 94)
-    Mod.BackgroundColor3 = Φ.pnl
-    Mod.BackgroundTransparency = 0.1
-    Mod.BorderSizePixel = 0
-    Mod.LayoutOrder = order
-    Mod.ZIndex = 3
-    Mod.ClipsDescendants = true
-    Mod.Parent = CT
-    mc(Mod, 18)
+-- ═══ MODULE CARD FACTORY ═══
+local function createModule(icon, name, desc, order, accentColor, tags)
+    local card = _iNew("Frame")
+    card.Name = _genID(5)
+    card.Size = _ud2(1, 0, 0, 100)
+    card.BackgroundColor3 = P.bgCard
+    card.BackgroundTransparency = 0.08
+    card.BorderSizePixel = 0
+    card.LayoutOrder = order
+    card.ZIndex = 3
+    card.ClipsDescendants = true
+    card.Parent = CT
+    corner(card, 20)
 
-    local MS = ms(Mod, Φ.brd, 1, 0.65)
+    local cardStroke = stroke(card, P.border, 1, 0.6)
 
-    -- Left gradient bar
-    local LB = Instance.new("Frame")
-    LB.Size = UDim2.new(0, 3.5, 0.5, 0)
-    LB.Position = UDim2.new(0, 0, 0.25, 0)
-    LB.BackgroundColor3 = acCol
-    LB.BackgroundTransparency = 0.35
-    LB.BorderSizePixel = 0
-    LB.ZIndex = 4
-    LB.Parent = Mod
-    mc(LB, 2)
-    local lbg = Instance.new("UIGradient", LB)
-    lbg.Rotation = 90
-    lbg.Transparency = NumberSequence.new{
-        NumberSequenceKeypoint.new(0, 0.6),
-        NumberSequenceKeypoint.new(0.5, 0),
-        NumberSequenceKeypoint.new(1, 0.6),
-    }
+    -- Left accent bar
+    local leftBar = _iNew("Frame")
+    leftBar.Size = _ud2(0, 4, 0.45, 0)
+    leftBar.Position = _ud2(0, 0, 0.275, 0)
+    leftBar.BackgroundColor3 = accentColor
+    leftBar.BackgroundTransparency = 0.3
+    leftBar.BorderSizePixel = 0
+    leftBar.ZIndex = 4
+    leftBar.Parent = card
+    corner(leftBar, 2)
+    local lbGrad = _iNew("UIGradient")
+    lbGrad.Rotation = 90
+    lbGrad.Transparency = _nsNew{_nsk(0, 0.7), _nsk(0.5, 0), _nsk(1, 0.7)}
+    lbGrad.Parent = leftBar
 
-    -- Icon (triple ring)
-    local icO = Instance.new("Frame")
-    icO.Size = UDim2.new(0, 50, 0, 50)
-    icO.Position = UDim2.new(0, 14, 0, 12)
-    icO.BackgroundColor3 = acCol
-    icO.BackgroundTransparency = 0.92
-    icO.BorderSizePixel = 0
-    icO.ZIndex = 4
-    icO.Parent = Mod
-    mc(icO, 16)
+    -- Icon container (triple ring with inner glow)
+    local iconOuter = _iNew("Frame")
+    iconOuter.Size = _ud2(0, 54, 0, 54)
+    iconOuter.Position = _ud2(0, 16, 0, 12)
+    iconOuter.BackgroundColor3 = accentColor
+    iconOuter.BackgroundTransparency = 0.91
+    iconOuter.BorderSizePixel = 0
+    iconOuter.ZIndex = 4
+    iconOuter.Parent = card
+    corner(iconOuter, 18)
 
-    local icM = Instance.new("Frame")
-    icM.Size = UDim2.new(0, 38, 0, 38)
-    icM.Position = UDim2.new(0.5, -19, 0.5, -19)
-    icM.BackgroundColor3 = acCol
-    icM.BackgroundTransparency = 0.85
-    icM.BorderSizePixel = 0
-    icM.ZIndex = 5
-    icM.Parent = icO
-    mc(icM, 12)
+    local iconMid = _iNew("Frame")
+    iconMid.Size = _ud2(0, 40, 0, 40)
+    iconMid.AnchorPoint = Vector2.new(0.5, 0.5)
+    iconMid.Position = _ud2(0.5, 0, 0.5, 0)
+    iconMid.BackgroundColor3 = accentColor
+    iconMid.BackgroundTransparency = 0.84
+    iconMid.BorderSizePixel = 0
+    iconMid.ZIndex = 5
+    iconMid.Parent = iconOuter
+    corner(iconMid, 14)
 
-    local icI = Instance.new("Frame")
-    icI.Size = UDim2.new(0, 28, 0, 28)
-    icI.Position = UDim2.new(0.5, -14, 0.5, -14)
-    icI.BackgroundColor3 = acCol
-    icI.BackgroundTransparency = 0.75
-    icI.BorderSizePixel = 0
-    icI.ZIndex = 6
-    icI.Parent = icM
-    mc(icI, 9)
+    local iconInner = _iNew("Frame")
+    iconInner.Size = _ud2(0, 30, 0, 30)
+    iconInner.AnchorPoint = Vector2.new(0.5, 0.5)
+    iconInner.Position = _ud2(0.5, 0, 0.5, 0)
+    iconInner.BackgroundColor3 = accentColor
+    iconInner.BackgroundTransparency = 0.72
+    iconInner.BorderSizePixel = 0
+    iconInner.ZIndex = 6
+    iconInner.Parent = iconMid
+    corner(iconInner, 10)
 
-    local icL = Instance.new("TextLabel")
-    icL.Size = UDim2.new(1, 0, 1, 0)
-    icL.BackgroundTransparency = 1
-    icL.Text = icon
-    icL.TextSize = 16
-    icL.Font = Enum.Font.GothamBold
-    icL.ZIndex = 7
-    icL.Parent = icI
+    -- Icon glow
+    local iconGlow = _iNew("Frame")
+    iconGlow.Size = _ud2(0, 16, 0, 16)
+    iconGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+    iconGlow.Position = _ud2(0.5, 0, 0.5, 0)
+    iconGlow.BackgroundColor3 = accentColor
+    iconGlow.BackgroundTransparency = 0.5
+    iconGlow.ZIndex = 7
+    iconGlow.Parent = iconInner
+    corner(iconGlow, 8)
 
-    -- Name
-    local NL = Instance.new("TextLabel")
-    NL.Size = UDim2.new(1, -150, 0, 20)
-    NL.Position = UDim2.new(0, 74, 0, 12)
-    NL.BackgroundTransparency = 1
-    NL.Text = name
-    NL.TextColor3 = Φ.tw
-    NL.TextSize = 14
-    NL.Font = Enum.Font.GothamBold
-    NL.TextXAlignment = Enum.TextXAlignment.Left
-    NL.ZIndex = 4
-    NL.Parent = Mod
+    local iconLabel = _iNew("TextLabel")
+    iconLabel.Size = _ud2(1, 0, 1, 0)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = icon
+    iconLabel.TextSize = 17
+    iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.ZIndex = 8
+    iconLabel.Parent = iconInner
 
-    -- Desc
-    local DL = Instance.new("TextLabel")
-    DL.Size = UDim2.new(1, -150, 0, 14)
-    DL.Position = UDim2.new(0, 74, 0, 34)
-    DL.BackgroundTransparency = 1
-    DL.Text = desc
-    DL.TextColor3 = Φ.td
-    DL.TextSize = 10
-    DL.Font = Enum.Font.Gotham
-    DL.TextXAlignment = Enum.TextXAlignment.Left
-    DL.ZIndex = 4
-    DL.Parent = Mod
+    -- Name label
+    local nameLabel = _iNew("TextLabel")
+    nameLabel.Size = _ud2(1, -160, 0, 22)
+    nameLabel.Position = _ud2(0, 80, 0, 12)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = P.textW
+    nameLabel.TextSize = 15
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 4
+    nameLabel.Parent = card
+
+    -- Description
+    local descLabel = _iNew("TextLabel")
+    descLabel.Size = _ud2(1, -160, 0, 14)
+    descLabel.Position = _ud2(0, 80, 0, 36)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = desc
+    descLabel.TextColor3 = P.textD
+    descLabel.TextSize = 10
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.ZIndex = 4
+    descLabel.Parent = card
 
     -- Tags
     if tags then
-        local tx = 74
-        for _, tg in ipairs(tags) do
-            local tf = Instance.new("Frame")
-            tf.Size = UDim2.new(0, #tg * 5 + 14, 0, 16)
-            tf.Position = UDim2.new(0, tx, 0, 54)
-            tf.BackgroundColor3 = acCol
-            tf.BackgroundTransparency = 0.9
-            tf.BorderSizePixel = 0
-            tf.ZIndex = 4
-            tf.Parent = Mod
-            mc(tf, 5)
+        local tx = 80
+        for _, tagText in ipairs(tags) do
+            local tagFrame = _iNew("Frame")
+            tagFrame.Size = _ud2(0, #tagText * 5.5 + 16, 0, 17)
+            tagFrame.Position = _ud2(0, tx, 0, 56)
+            tagFrame.BackgroundColor3 = accentColor
+            tagFrame.BackgroundTransparency = 0.89
+            tagFrame.BorderSizePixel = 0
+            tagFrame.ZIndex = 4
+            tagFrame.Parent = card
+            corner(tagFrame, 6)
 
-            local tl = Instance.new("TextLabel")
-            tl.Size = UDim2.new(1, 0, 1, 0)
-            tl.BackgroundTransparency = 1
-            tl.Text = tg
-            tl.TextColor3 = acCol
-            tl.TextSize = 8
-            tl.Font = Enum.Font.GothamBold
-            tl.ZIndex = 5
-            tl.Parent = tf
+            local tagLabel = _iNew("TextLabel")
+            tagLabel.Size = _ud2(1, 0, 1, 0)
+            tagLabel.BackgroundTransparency = 1
+            tagLabel.Text = tagText
+            tagLabel.TextColor3 = accentColor
+            tagLabel.TextSize = 7.5
+            tagLabel.Font = Enum.Font.GothamBlack
+            tagLabel.ZIndex = 5
+            tagLabel.Parent = tagFrame
 
-            tx = tx + #tg * 5 + 18
+            tx = tx + #tagText * 5.5 + 20
         end
     end
 
-    -- Bottom shine line
-    local BL = Instance.new("Frame")
-    BL.Size = UDim2.new(0, 0, 0, 2)
-    BL.Position = UDim2.new(0.5, 0, 1, -3)
-    BL.AnchorPoint = Vector2.new(0.5, 0)
-    BL.BackgroundColor3 = acCol
-    BL.BackgroundTransparency = 0.5
-    BL.BorderSizePixel = 0
-    BL.ZIndex = 4
-    BL.Parent = Mod
-    mc(BL, 1)
-
-    -- Toggle pill
-    local TB = Instance.new("TextButton")
-    TB.Size = UDim2.new(0, 54, 0, 30)
-    TB.Position = UDim2.new(1, -66, 0.5, -15)
-    TB.BackgroundColor3 = Φ.tOff
-    TB.Text = ""
-    TB.BorderSizePixel = 0
-    TB.AutoButtonColor = false
-    TB.ZIndex = 4
-    TB.Parent = Mod
-    mc(TB, 15)
-    local TBS = ms(TB, Φ.brd, 0.5, 0.55)
-
-    local TK = Instance.new("Frame")
-    TK.Size = UDim2.new(0, 24, 0, 24)
-    TK.Position = UDim2.new(0, 3, 0.5, -12)
-    TK.BackgroundColor3 = Φ.tKOff
-    TK.BorderSizePixel = 0
-    TK.ZIndex = 5
-    TK.Parent = TB
-    mc(TK, 12)
-    local TKS = ms(TK, acCol, 0, 0.8)
+    -- Bottom shine line (animated on hover/toggle)
+    local bottomLine = _iNew("Frame")
+    bottomLine.Size = _ud2(0, 0, 0, 2.5)
+    bottomLine.AnchorPoint = Vector2.new(0.5, 0)
+    bottomLine.Position = _ud2(0.5, 0, 1, -4)
+    bottomLine.BackgroundColor3 = accentColor
+    bottomLine.BackgroundTransparency = 0.4
+    bottomLine.BorderSizePixel = 0
+    bottomLine.ZIndex = 4
+    bottomLine.Parent = card
+    corner(bottomLine, 2)
+    gradient(bottomLine, _csNew{_csk(0, accentColor), _csk(1, P.accent2)})
 
     -- Status dot
-    local SD = Instance.new("Frame")
-    SD.Size = UDim2.new(0, 9, 0, 9)
-    SD.Position = UDim2.new(1, -20, 0, 8)
-    SD.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-    SD.BorderSizePixel = 0
-    SD.ZIndex = 5
-    SD.Parent = Mod
-    mc(SD, 5)
+    local statusDot = _iNew("Frame")
+    statusDot.Size = _ud2(0, 10, 0, 10)
+    statusDot.Position = _ud2(1, -22, 0, 8)
+    statusDot.BackgroundColor3 = _c3(30, 30, 45)
+    statusDot.BorderSizePixel = 0
+    statusDot.ZIndex = 5
+    statusDot.Parent = card
+    corner(statusDot, 5)
 
-    -- Hover
-    local hov = Instance.new("TextButton")
-    hov.Size = UDim2.new(1, 0, 1, 0)
-    hov.BackgroundTransparency = 1
-    hov.Text = ""
-    hov.ZIndex = 3
-    hov.Parent = Mod
+    -- Toggle pill
+    local toggleBtn = _iNew("TextButton")
+    toggleBtn.Size = _ud2(0, 56, 0, 32)
+    toggleBtn.Position = _ud2(1, -70, 0.5, -16)
+    toggleBtn.BackgroundColor3 = P.toggleOff
+    toggleBtn.Text = ""
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.AutoButtonColor = false
+    toggleBtn.ZIndex = 4
+    toggleBtn.Parent = card
+    corner(toggleBtn, 16)
+    local toggleStroke = stroke(toggleBtn, P.border, 0.5, 0.5)
 
-    hov.MouseEnter:Connect(function()
-        twn(Mod, tw(0.25), {BackgroundTransparency = 0}):Play()
-        twn(MS, tw(0.25), {Transparency = 0.3}):Play()
-        twn(LB, tw(0.25), {BackgroundTransparency = 0.1, Size = UDim2.new(0, 5, 0.6, 0)}):Play()
-        twn(BL, tw(0.35), {Size = UDim2.new(0.75, 0, 0, 2)}):Play()
-        twn(icO, tw(0.3), {BackgroundTransparency = 0.85}):Play()
+    local knob = _iNew("Frame")
+    knob.Size = _ud2(0, 26, 0, 26)
+    knob.Position = _ud2(0, 3, 0.5, -13)
+    knob.BackgroundColor3 = P.toggleKnobOff
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 5
+    knob.Parent = toggleBtn
+    corner(knob, 13)
+    local knobStroke = stroke(knob, accentColor, 0, 0.8)
+
+    -- Knob inner dot
+    local knobDot = _iNew("Frame")
+    knobDot.Size = _ud2(0, 8, 0, 8)
+    knobDot.AnchorPoint = Vector2.new(0.5, 0.5)
+    knobDot.Position = _ud2(0.5, 0, 0.5, 0)
+    knobDot.BackgroundColor3 = accentColor
+    knobDot.BackgroundTransparency = 1
+    knobDot.BorderSizePixel = 0
+    knobDot.ZIndex = 6
+    knobDot.Parent = knob
+    corner(knobDot, 4)
+
+    -- Hover area
+    local hoverBtn = _iNew("TextButton")
+    hoverBtn.Size = _ud2(1, 0, 1, 0)
+    hoverBtn.BackgroundTransparency = 1
+    hoverBtn.Text = ""
+    hoverBtn.ZIndex = 3
+    hoverBtn.Parent = card
+
+    hoverBtn.MouseEnter:Connect(function()
+        tween(card, ti(0.25), {BackgroundTransparency = 0}):Play()
+        tween(cardStroke, ti(0.25), {Transparency = 0.25}):Play()
+        tween(leftBar, ti(0.3), {BackgroundTransparency = 0.05, Size = _ud2(0, 5.5, 0.55, 0)}):Play()
+        tween(bottomLine, ti(0.4), {Size = _ud2(0.8, 0, 0, 2.5)}):Play()
+        tween(iconOuter, ti(0.3), {BackgroundTransparency = 0.82}):Play()
+        tween(iconGlow, ti(0.3), {BackgroundTransparency = 0.3}):Play()
     end)
-    hov.MouseLeave:Connect(function()
-        twn(Mod, tw(0.25), {BackgroundTransparency = 0.1}):Play()
-        twn(MS, tw(0.25), {Transparency = 0.65}):Play()
-        twn(LB, tw(0.25), {BackgroundTransparency = 0.35, Size = UDim2.new(0, 3.5, 0.5, 0)}):Play()
-        twn(BL, tw(0.35), {Size = UDim2.new(0, 0, 0, 2)}):Play()
-        twn(icO, tw(0.3), {BackgroundTransparency = 0.92}):Play()
+    hoverBtn.MouseLeave:Connect(function()
+        tween(card, ti(0.25), {BackgroundTransparency = 0.08}):Play()
+        tween(cardStroke, ti(0.25), {Transparency = 0.6}):Play()
+        tween(leftBar, ti(0.3), {BackgroundTransparency = 0.3, Size = _ud2(0, 4, 0.45, 0)}):Play()
+        tween(bottomLine, ti(0.4), {Size = _ud2(0, 0, 0, 2.5)}):Play()
+        tween(iconOuter, ti(0.3), {BackgroundTransparency = 0.91}):Play()
+        tween(iconGlow, ti(0.3), {BackgroundTransparency = 0.5}):Play()
     end)
 
     local isOn = false
 
-    local function updV(state)
+    local function setVisual(state)
         isOn = state
-        local t = tw(0.35)
+        local t = ti(0.35)
+
         if state then
-            twn(TB, t, {BackgroundColor3 = acCol}):Play()
-            twn(TBS, t, {Color = acCol, Transparency = 0.2}):Play()
-            twn(TK, t, {Position = UDim2.new(1, -27, 0.5, -12), BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
-            twn(TKS, t, {Thickness = 3, Transparency = 0.1}):Play()
-            twn(MS, t, {Color = acCol, Transparency = 0.3}):Play()
-            twn(icI, t, {BackgroundTransparency = 0.6}):Play()
-            twn(icM, t, {BackgroundTransparency = 0.75}):Play()
-            twn(LB, t, {BackgroundTransparency = 0.05}):Play()
-            twn(SD, t, {BackgroundColor3 = Φ.tg}):Play()
-            -- Pulse
-            twn(TB, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, true), {
-                Size = UDim2.new(0, 58, 0, 34)
+            -- ON animations
+            tween(toggleBtn, t, {BackgroundColor3 = accentColor}):Play()
+            tween(toggleStroke, t, {Color = accentColor, Transparency = 0.15}):Play()
+            tween(knob, t, {
+                Position = _ud2(1, -29, 0.5, -13),
+                BackgroundColor3 = _c3(255, 255, 255)
             }):Play()
+            tween(knobStroke, t, {Thickness = 3, Transparency = 0.05}):Play()
+            tween(knobDot, t, {BackgroundTransparency = 0}):Play()
+            tween(cardStroke, t, {Color = accentColor, Transparency = 0.25}):Play()
+            tween(iconInner, t, {BackgroundTransparency = 0.55}):Play()
+            tween(iconMid, t, {BackgroundTransparency = 0.7}):Play()
+            tween(iconGlow, t, {BackgroundTransparency = 0.25}):Play()
+            tween(leftBar, t, {BackgroundTransparency = 0}):Play()
+            tween(statusDot, t, {BackgroundColor3 = P.textG}):Play()
+
+            -- Activation pulse
+            tween(toggleBtn, _twInfo(0.14, _enumES.Quad, _enumED.Out, 0, true), {
+                Size = _ud2(0, 60, 0, 36)
+            }):Play()
+
             -- Bottom flash
-            twn(BL, TweenInfo.new(0.45, Enum.EasingStyle.Quint), {
-                Size = UDim2.new(0.9, 0, 0, 2.5), BackgroundTransparency = 0.2
+            tween(bottomLine, _twInfo(0.5, _enumES.Quint), {
+                Size = _ud2(0.92, 0, 0, 3), BackgroundTransparency = 0.15
             }):Play()
-            task.delay(0.6, function()
+            _tDelay(0.6, function()
                 if isOn then
-                    pcall(function()
-                        twn(BL, tw(0.5), {Size = UDim2.new(0.35, 0, 0, 2), BackgroundTransparency = 0.5}):Play()
+                    _pCall(function()
+                        tween(bottomLine, ti(0.6), {
+                            Size = _ud2(0.4, 0, 0, 2.5), BackgroundTransparency = 0.4
+                        }):Play()
                     end)
                 end
             end)
+
+            -- Card glow pulse
+            tween(card, _twInfo(0.15, _enumES.Quad, _enumED.Out, 0, true), {
+                BackgroundColor3 = accentColor
+            }):Play()
         else
-            twn(TB, t, {BackgroundColor3 = Φ.tOff}):Play()
-            twn(TBS, t, {Color = Φ.brd, Transparency = 0.55}):Play()
-            twn(TK, t, {Position = UDim2.new(0, 3, 0.5, -12), BackgroundColor3 = Φ.tKOff}):Play()
-            twn(TKS, t, {Thickness = 0, Transparency = 0.8}):Play()
-            twn(MS, t, {Color = Φ.brd, Transparency = 0.65}):Play()
-            twn(icI, t, {BackgroundTransparency = 0.75}):Play()
-            twn(icM, t, {BackgroundTransparency = 0.85}):Play()
-            twn(LB, t, {BackgroundTransparency = 0.35}):Play()
-            twn(SD, t, {BackgroundColor3 = Color3.fromRGB(35, 35, 50)}):Play()
-            twn(BL, tw(0.3), {Size = UDim2.new(0, 0, 0, 2), BackgroundTransparency = 0.5}):Play()
+            -- OFF animations
+            tween(toggleBtn, t, {BackgroundColor3 = P.toggleOff}):Play()
+            tween(toggleStroke, t, {Color = P.border, Transparency = 0.5}):Play()
+            tween(knob, t, {
+                Position = _ud2(0, 3, 0.5, -13),
+                BackgroundColor3 = P.toggleKnobOff
+            }):Play()
+            tween(knobStroke, t, {Thickness = 0, Transparency = 0.8}):Play()
+            tween(knobDot, t, {BackgroundTransparency = 1}):Play()
+            tween(cardStroke, t, {Color = P.border, Transparency = 0.6}):Play()
+            tween(iconInner, t, {BackgroundTransparency = 0.72}):Play()
+            tween(iconMid, t, {BackgroundTransparency = 0.84}):Play()
+            tween(iconGlow, t, {BackgroundTransparency = 0.5}):Play()
+            tween(leftBar, t, {BackgroundTransparency = 0.3}):Play()
+            tween(statusDot, t, {BackgroundColor3 = _c3(30, 30, 45)}):Play()
+            tween(bottomLine, ti(0.3), {Size = _ud2(0, 0, 0, 2.5), BackgroundTransparency = 0.4}):Play()
         end
     end
 
-    return TB, updV
+    return toggleBtn, setVisual
 end
 
-local JT, JV = createMod("⚡", "Infinite Jump", "Прыжки в воздухе без ограничений", 1, Φ.a1, {"AIR", "MULTI", "v3"})
-local RT, RV = createMod("👻", "Ghost Anti-Ragdoll", "Призрак ходит — тело летит натурально", 2, Φ.a2, {"GHOST", "v6", "SAFE"})
-local AT, AV = createMod("🎭", "No Animations", "Полная заморозка анимаций", 3, Φ.a3, {"FREEZE", "SILENT"})
+-- Create modules
+local jumpToggle, jumpVisual = createModule(
+    "⚡", "Infinite Jump",
+    "Прыжки в воздухе без ограничений",
+    1, P.accent1, {"AIR", "MULTI", "v3"}
+)
 
--- Разделитель
-local Sep = Instance.new("Frame")
-Sep.Size = UDim2.new(0.88, 0, 0, 1)
-Sep.BackgroundColor3 = Φ.tw
-Sep.BackgroundTransparency = 0.93
-Sep.BorderSizePixel = 0
-Sep.LayoutOrder = 5
-Sep.ZIndex = 3
-Sep.Parent = CT
-mc(Sep, 1)
-local sg2 = Instance.new("UIGradient", Sep)
-sg2.Transparency = NumberSequence.new{
-    NumberSequenceKeypoint.new(0, 1),
-    NumberSequenceKeypoint.new(0.25, 0),
-    NumberSequenceKeypoint.new(0.75, 0),
-    NumberSequenceKeypoint.new(1, 1),
-}
+local ragToggle, ragVisual = createModule(
+    "👻", "Ghost Anti-Ragdoll",
+    "Призрак ходит — тело летит натурально",
+    2, P.accent2, {"GHOST", "v7", "SAFE"}
+)
 
--- ═══ STATUS BAR v14 ═══
-local SB = Instance.new("Frame")
-SB.Name = _μ(3)
-SB.Size = UDim2.new(1, 0, 0, 58)
-SB.BackgroundColor3 = Φ.bg2
-SB.BackgroundTransparency = 0.2
+local animToggle, animVisual = createModule(
+    "🎭", "No Animations",
+    "Полная заморозка анимаций",
+    3, P.accent3, {"FREEZE", "SILENT"}
+)
+
+-- Separator
+local separator = _iNew("Frame")
+separator.Size = _ud2(0.9, 0, 0, 1)
+separator.BackgroundColor3 = P.textW
+separator.BackgroundTransparency = 0.92
+separator.BorderSizePixel = 0
+separator.LayoutOrder = 5
+separator.ZIndex = 3
+separator.Parent = CT
+corner(separator, 1)
+local sepGrad = _iNew("UIGradient")
+sepGrad.Transparency = _nsNew{_nsk(0, 1), _nsk(0.2, 0), _nsk(0.8, 0), _nsk(1, 1)}
+sepGrad.Parent = separator
+
+-- ═══ STATUS BAR ═══
+local SB = _iNew("Frame")
+SB.Name = _genID(4)
+SB.Size = _ud2(1, 0, 0, 62)
+SB.BackgroundColor3 = P.bgDeep
+SB.BackgroundTransparency = 0.15
 SB.BorderSizePixel = 0
 SB.LayoutOrder = 10
 SB.ZIndex = 3
 SB.Parent = CT
-mc(SB, 16)
-ms(SB, Φ.brd, 0.5, 0.7)
+corner(SB, 18)
+stroke(SB, P.border, 0.5, 0.65)
 
--- Indicator boxes
-local dots = {}
-local dotLbls = {}
-local dotCols = {Φ.a1, Φ.a2, Φ.a3}
+-- Indicator dots
+local indicatorDots = {}
+local indicatorLabels = {}
+local dotColors = {P.accent1, P.accent2, P.accent3}
 local dotNames = {"JMP", "RAG", "ANI"}
+
 for i = 1, 3 do
-    local dg = Instance.new("Frame")
-    dg.Size = UDim2.new(0, 32, 0, 32)
-    dg.Position = UDim2.new(0, 10 + (i - 1) * 38, 0, 8)
-    dg.BackgroundColor3 = Color3.fromRGB(20, 20, 32)
-    dg.BackgroundTransparency = 0.25
-    dg.BorderSizePixel = 0
-    dg.ZIndex = 4
-    dg.Parent = SB
-    mc(dg, 9)
+    local dotGroup = _iNew("Frame")
+    dotGroup.Size = _ud2(0, 34, 0, 34)
+    dotGroup.Position = _ud2(0, 12 + (i - 1) * 40, 0, 8)
+    dotGroup.BackgroundColor3 = _c3(18, 18, 30)
+    dotGroup.BackgroundTransparency = 0.2
+    dotGroup.BorderSizePixel = 0
+    dotGroup.ZIndex = 4
+    dotGroup.Parent = SB
+    corner(dotGroup, 10)
 
-    local d = Instance.new("Frame")
-    d.Size = UDim2.new(0, 10, 0, 10)
-    d.Position = UDim2.new(0.5, -5, 0, 5)
-    d.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    d.BorderSizePixel = 0
-    d.ZIndex = 5
-    d.Parent = dg
-    mc(d, 5)
-    dots[i] = d
+    local dot = _iNew("Frame")
+    dot.Size = _ud2(0, 11, 0, 11)
+    dot.AnchorPoint = Vector2.new(0.5, 0)
+    dot.Position = _ud2(0.5, 0, 0, 5)
+    dot.BackgroundColor3 = _c3(28, 28, 42)
+    dot.BorderSizePixel = 0
+    dot.ZIndex = 5
+    dot.Parent = dotGroup
+    corner(dot, 6)
+    indicatorDots[i] = dot
 
-    local dl = Instance.new("TextLabel")
-    dl.Size = UDim2.new(1, 0, 0, 10)
-    dl.Position = UDim2.new(0, 0, 1, -13)
-    dl.BackgroundTransparency = 1
-    dl.Text = dotNames[i]
-    dl.TextColor3 = Φ.td
-    dl.TextSize = 6
-    dl.Font = Enum.Font.GothamBlack
-    dl.ZIndex = 5
-    dl.Parent = dg
-    dotLbls[i] = dl
+    local dLabel = _iNew("TextLabel")
+    dLabel.Size = _ud2(1, 0, 0, 10)
+    dLabel.Position = _ud2(0, 0, 1, -14)
+    dLabel.BackgroundTransparency = 1
+    dLabel.Text = dotNames[i]
+    dLabel.TextColor3 = P.textD
+    dLabel.TextSize = 6
+    dLabel.Font = Enum.Font.GothamBlack
+    dLabel.ZIndex = 5
+    dLabel.Parent = dotGroup
+    indicatorLabels[i] = dLabel
 end
 
-local SL = Instance.new("TextLabel")
-SL.Size = UDim2.new(1, -135, 0, 16)
-SL.Position = UDim2.new(0, 128, 0, 8)
-SL.BackgroundTransparency = 1
-SL.Text = "Ready"
-SL.TextColor3 = Φ.td
-SL.TextSize = 10
-SL.Font = Enum.Font.GothamMedium
-SL.TextXAlignment = Enum.TextXAlignment.Left
-SL.ZIndex = 4
-SL.Parent = SB
+local statusLabel = _iNew("TextLabel")
+statusLabel.Size = _ud2(1, -145, 0, 18)
+statusLabel.Position = _ud2(0, 135, 0, 8)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Ready"
+statusLabel.TextColor3 = P.textD
+statusLabel.TextSize = 11
+statusLabel.Font = Enum.Font.GothamMedium
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.ZIndex = 4
+statusLabel.Parent = SB
 
-local GI = Instance.new("TextLabel")
-GI.Size = UDim2.new(1, -135, 0, 14)
-GI.Position = UDim2.new(0, 128, 0, 26)
-GI.BackgroundTransparency = 1
-GI.Text = ""
-GI.TextColor3 = Φ.a2
-GI.TextSize = 9
-GI.Font = Enum.Font.Gotham
-GI.TextXAlignment = Enum.TextXAlignment.Left
-GI.ZIndex = 4
-GI.Parent = SB
+local ghostInfoLabel = _iNew("TextLabel")
+ghostInfoLabel.Size = _ud2(1, -145, 0, 14)
+ghostInfoLabel.Position = _ud2(0, 135, 0, 28)
+ghostInfoLabel.BackgroundTransparency = 1
+ghostInfoLabel.Text = ""
+ghostInfoLabel.TextColor3 = P.accent2
+ghostInfoLabel.TextSize = 9
+ghostInfoLabel.Font = Enum.Font.Gotham
+ghostInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+ghostInfoLabel.ZIndex = 4
+ghostInfoLabel.Parent = SB
 
-local PI = Instance.new("TextLabel")
-PI.Size = UDim2.new(0, 70, 0, 12)
-PI.Position = UDim2.new(1, -80, 0, 42)
-PI.BackgroundTransparency = 1
-PI.Text = "●  " .. _ι(10, 40) .. "ms"
-PI.TextColor3 = Φ.tg
-PI.TextSize = 8
-PI.Font = Enum.Font.GothamMedium
-PI.TextXAlignment = Enum.TextXAlignment.Right
-PI.ZIndex = 4
-PI.Parent = SB
+local pingLabel = _iNew("TextLabel")
+pingLabel.Size = _ud2(0, 75, 0, 12)
+pingLabel.Position = _ud2(1, -85, 0, 45)
+pingLabel.BackgroundTransparency = 1
+pingLabel.Text = "●  " .. _rI(10, 35) .. "ms"
+pingLabel.TextColor3 = P.textG
+pingLabel.TextSize = 8
+pingLabel.Font = Enum.Font.GothamMedium
+pingLabel.TextXAlignment = Enum.TextXAlignment.Right
+pingLabel.ZIndex = 4
+pingLabel.Parent = SB
 
-local function updateSt()
-    local cnt = 0
-    local sts = {_Σ.j, _Σ.ar, _Σ.na}
-    for i, s in ipairs(sts) do
-        local t = tw(0.3)
-        if s then
-            cnt += 1
-            twn(dots[i], t, {BackgroundColor3 = dotCols[i]}):Play()
-            twn(dotLbls[i], t, {TextColor3 = dotCols[i]}):Play()
+local function updateStatus()
+    local count = 0
+    local states = {CFG.infJump, CFG.antiRagdoll, CFG.noAnim}
+    for i, active in ipairs(states) do
+        local t = ti(0.3)
+        if active then
+            count += 1
+            tween(indicatorDots[i], t, {BackgroundColor3 = dotColors[i]}):Play()
+            tween(indicatorLabels[i], t, {TextColor3 = dotColors[i]}):Play()
         else
-            twn(dots[i], t, {BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
-            twn(dotLbls[i], t, {TextColor3 = Φ.td}):Play()
+            tween(indicatorDots[i], t, {BackgroundColor3 = _c3(28, 28, 42)}):Play()
+            tween(indicatorLabels[i], t, {TextColor3 = P.textD}):Play()
         end
     end
-    if cnt == 0 then
-        SL.Text = "Модули неактивны"
-        twn(SL, tw(0.3), {TextColor3 = Φ.td}):Play()
+    if count == 0 then
+        statusLabel.Text = "Модули неактивны"
+        tween(statusLabel, ti(0.3), {TextColor3 = P.textD}):Play()
     else
-        SL.Text = cnt .. "/3 · WRAITH ACTIVE"
-        twn(SL, tw(0.3), {TextColor3 = Φ.tg}):Play()
+        statusLabel.Text = count .. "/3 · SPECTRE ACTIVE"
+        tween(statusLabel, ti(0.3), {TextColor3 = P.textG}):Play()
     end
 end
 
--- Ghost status
-task.spawn(function()
+-- Ghost status updater
+_tSpawn(function()
     while SG and SG.Parent do
-        if _gActive then
-            local e = math.floor(tick() - _rStart)
-            GI.Text = "👻 GHOST · " .. e .. "s · free movement"
-            GI.TextColor3 = Color3.fromHSV((tick() * 0.25) % 1, 0.45, 1)
+        if _ghostActive then
+            local elapsed = _mFloor(tick() - _ragStart)
+            ghostInfoLabel.Text = "👻 GHOST · " .. elapsed .. "s · free movement"
+            ghostInfoLabel.TextColor3 = _c3h((tick() * 0.25) % 1, 0.4, 1)
         else
-            GI.Text = ""
+            ghostInfoLabel.Text = ""
         end
-        pcall(function() PI.Text = "●  " .. _ι(8, 45) .. "ms" end)
-        task.wait(0.12)
+        _pCall(function() pingLabel.Text = "●  " .. _rI(8, 42) .. "ms" end)
+        _tWait(0.12)
     end
 end)
 
--- ═══ HANDLERS ═══
-JT.MouseButton1Click:Connect(function()
-    _Σ.j = not _Σ.j
-    JV(_Σ.j)
-    if _Σ.j then _ref() end
-    updateSt()
+-- ═══ TOGGLE HANDLERS ═══
+jumpToggle.MouseButton1Click:Connect(function()
+    CFG.infJump = not CFG.infJump
+    jumpVisual(CFG.infJump)
+    if CFG.infJump then _refreshChar() end
+    updateStatus()
 end)
 
-RT.MouseButton1Click:Connect(function()
-    _Σ.ar = not _Σ.ar
-    RV(_Σ.ar)
-    if _Σ.ar then _ref() _startAR()
-    else _stopAR() end
-    updateSt()
+ragToggle.MouseButton1Click:Connect(function()
+    CFG.antiRagdoll = not CFG.antiRagdoll
+    ragVisual(CFG.antiRagdoll)
+    if CFG.antiRagdoll then _refreshChar() _startAntiRagdoll()
+    else _stopAntiRagdoll() end
+    updateStatus()
 end)
 
-AT.MouseButton1Click:Connect(function()
-    _Σ.na = not _Σ.na
-    AV(_Σ.na)
-    if _Σ.na then _ref() _startNA()
-    else _stopNA() end
-    updateSt()
+animToggle.MouseButton1Click:Connect(function()
+    CFG.noAnim = not CFG.noAnim
+    animVisual(CFG.noAnim)
+    if CFG.noAnim then _refreshChar() _startNoAnim()
+    else _stopNoAnim() end
+    updateStatus()
 end)
 
 -- ═══ MINIMIZE / CLOSE ═══
-local _min = false
-local _fSz = MF.Size
+local minimized = false
+local fullSize = MF.Size
 
-MinB.MouseButton1Click:Connect(function()
-    _min = not _min
-    if _min then
-        twn(MF, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 380, 0, 68)
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        tween(MF, _twInfo(0.45, _enumES.Back, _enumED.In), {
+            Size = _ud2(0, 400, 0, 72)
         }):Play()
-        task.delay(0.05, function() CT.Visible = false end)
-        MinB.Text = "◻"
+        _tDelay(0.06, function() CT.Visible = false end)
+        MinBtn.Text = "◻"
     else
-        twn(MF, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Size = _fSz}):Play()
-        task.delay(0.3, function() CT.Visible = true end)
-        MinB.Text = "━"
+        tween(MF, _twInfo(0.5, _enumES.Back), {Size = fullSize}):Play()
+        _tDelay(0.3, function() CT.Visible = true end)
+        MinBtn.Text = "━"
     end
 end)
 
-ClsB.MouseButton1Click:Connect(function()
-    _Σ.j = false; _Σ.ar = false; _Σ.na = false
-    _stopAR(); _stopNA()
-    if _hb then _hb:Disconnect() end
+ClsBtn.MouseButton1Click:Connect(function()
+    CFG.infJump = false
+    CFG.antiRagdoll = false
+    CFG.noAnim = false
+    _stopAntiRagdoll()
+    _stopNoAnim()
+    if _heartbeatC then _heartbeatC:Disconnect() end
 
-    twn(MFS, tw(0.2), {Transparency = 1}):Play()
-    twn(MF, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-        Size = UDim2.new(0, 44, 0, 44),
-        Position = UDim2.new(0.5, -22, 0.5, -22),
-        BackgroundTransparency = 0.4
+    tween(mainStroke, ti(0.2), {Transparency = 1}):Play()
+    tween(MF, _twInfo(0.5, _enumES.Back, _enumED.In), {
+        Size = _ud2(0, 48, 0, 48),
+        Position = _ud2(0.5, -24, 0.5, -24),
+        BackgroundTransparency = 0.5
     }):Play()
-    task.delay(0.35, function()
-        twn(MF, tw(0.15), {BackgroundTransparency = 1}):Play()
+    _tDelay(0.35, function()
+        tween(MF, ti(0.15), {BackgroundTransparency = 1}):Play()
     end)
-    task.delay(0.55, function() SG:Destroy() end)
+    _tDelay(0.55, function()
+        _pCall(function() SG:Destroy() end)
+    end)
 end)
 
 -- ═══ LIVE ANIMATIONS ═══
 
--- 1. Rainbow border
-task.spawn(function()
-    local h = _ρ(0, 1)
+-- 1. Rainbow border pulse
+_tSpawn(function()
+    local hue = _rF(0, 1)
     while SG and SG.Parent do
-        h = (h + 0.001) % 1
-        local ac = (_Σ.j and 1 or 0) + (_Σ.ar and 1 or 0) + (_Σ.na and 1 or 0)
+        hue = (hue + 0.0012) % 1
+        local activeCount = (CFG.infJump and 1 or 0) + (CFG.antiRagdoll and 1 or 0) + (CFG.noAnim and 1 or 0)
         local t = tick()
-        if ac > 0 then
-            MFS.Color = Color3.fromHSV(h, 0.5 + ac * 0.12, 0.75 + ac * 0.08)
-            MFS.Transparency = 0.06 + math.sin(t * 1.6) * 0.06
-            MFS.Thickness = 1.5 + math.sin(t * 2.2) * 0.5
-            pcall(function()
-                for _, ring in ipairs(logoRings) do
-                    ring.BackgroundColor3 = Color3.fromHSV((h + 0.1) % 1, 0.6, 0.9)
+
+        if activeCount > 0 then
+            mainStroke.Color = _c3h(hue, 0.45 + activeCount * 0.12, 0.7 + activeCount * 0.1)
+            mainStroke.Transparency = 0.05 + _mSin(t * 1.8) * 0.08
+            mainStroke.Thickness = 1.5 + _mSin(t * 2.4) * 0.6
+
+            _pCall(function()
+                for _, ring in ipairs(logoRingFrames) do
+                    ring.BackgroundColor3 = _c3h((hue + 0.08) % 1, 0.55, 0.9)
                 end
+                logoGlow.BackgroundColor3 = _c3h((hue + 0.15) % 1, 0.6, 1)
             end)
         else
-            MFS.Color = Φ.brd; MFS.Transparency = 0.65; MFS.Thickness = 1
-            pcall(function()
-                for _, ring in ipairs(logoRings) do
-                    ring.BackgroundColor3 = Φ.a1
+            mainStroke.Color = P.border
+            mainStroke.Transparency = 0.6
+            mainStroke.Thickness = 1
+            _pCall(function()
+                for _, ring in ipairs(logoRingFrames) do
+                    ring.BackgroundColor3 = P.accent1
                 end
+                logoGlow.BackgroundColor3 = P.accent1
             end)
         end
-        task.wait(0.02)
+        _tWait(0.025)
     end
 end)
 
--- 2. Orb drift
-task.spawn(function()
+-- 2. Orb floating
+_tSpawn(function()
     while SG and SG.Parent do
         local t = tick()
-        for i, o in ipairs(orbs) do
-            pcall(function()
-                local od = orbData[i]
-                local ox = math.sin(t * (0.2 + i * 0.08) + i * 2) * 10
-                local oy = math.cos(t * (0.25 + i * 0.06) + i * 1.5) * 8
-                o.Position = UDim2.new(od[1].X.Scale, od[1].X.Offset + ox, od[1].Y.Scale, od[1].Y.Offset + oy)
-                o.BackgroundTransparency = od[4] + math.sin(t * (0.6 + i * 0.15)) * 0.025
+        for i, o in ipairs(orbFrames) do
+            _pCall(function()
+                local od = orbsData[i]
+                local ox = _mSin(t * (0.18 + i * 0.07) + i * 2.1) * 12
+                local oy = _mCos(t * (0.22 + i * 0.05) + i * 1.7) * 10
+                o.Position = _ud2(od[1].X.Scale, od[1].X.Offset + ox, od[1].Y.Scale, od[1].Y.Offset + oy)
+                o.BackgroundTransparency = od[4] + _mSin(t * (0.5 + i * 0.12)) * 0.02
             end)
         end
-        task.wait(0.03)
+        _tWait(0.03)
     end
 end)
 
--- 3. Logo ring breathing
-task.spawn(function()
+-- 3. Logo breathing
+_tSpawn(function()
     while SG and SG.Parent do
-        local ac = (_Σ.j and 1 or 0) + (_Σ.ar and 1 or 0) + (_Σ.na and 1 or 0)
+        local ac = (CFG.infJump and 1 or 0) + (CFG.antiRagdoll and 1 or 0) + (CFG.noAnim and 1 or 0)
         if ac > 0 then
-            for i, ring in ipairs(logoRings) do
-                pcall(function()
-                    local sz = (48 - (i - 1) * 8) + 2
-                    twn(ring, tw(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        BackgroundTransparency = 0.72 + (i - 1) * 0.04,
-                        Size = UDim2.new(0, sz, 0, sz),
+            for i, ring in ipairs(logoRingFrames) do
+                _pCall(function()
+                    local sz = (52 - (i - 1) * 10) + 3
+                    tween(ring, ti(2, _enumES.Sine, _enumED.InOut), {
+                        BackgroundTransparency = 0.7 + (i - 1) * 0.04,
+                        Size = _ud2(0, sz, 0, sz),
                     }):Play()
                 end)
             end
-            task.wait(1.8)
+            _pCall(function()
+                tween(logoGlow, ti(2, _enumES.Sine, _enumED.InOut), {
+                    BackgroundTransparency = 0.2,
+                    Size = _ud2(0, 22, 0, 22),
+                }):Play()
+            end)
+            _tWait(2)
             if not (SG and SG.Parent) then return end
-            for i, ring in ipairs(logoRings) do
-                pcall(function()
-                    local sz = 48 - (i - 1) * 8
-                    twn(ring, tw(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        BackgroundTransparency = 0.8 + (i - 1) * 0.03,
-                        Size = UDim2.new(0, sz, 0, sz),
+            for i, ring in ipairs(logoRingFrames) do
+                _pCall(function()
+                    local sz = 52 - (i - 1) * 10
+                    tween(ring, ti(2, _enumES.Sine, _enumED.InOut), {
+                        BackgroundTransparency = 0.78 + (i - 1) * 0.04,
+                        Size = _ud2(0, sz, 0, sz),
                     }):Play()
                 end)
             end
-            task.wait(1.8)
+            _pCall(function()
+                tween(logoGlow, ti(2, _enumES.Sine, _enumED.InOut), {
+                    BackgroundTransparency = 0.45,
+                    Size = _ud2(0, 18, 0, 18),
+                }):Play()
+            end)
+            _tWait(2)
         else
-            task.wait(0.4)
+            _tWait(0.4)
         end
     end
 end)
 
--- 4. Dots pulse
-task.spawn(function()
+-- 4. Indicator dots pulse
+_tSpawn(function()
     while SG and SG.Parent do
-        local sts = {_Σ.j, _Σ.ar, _Σ.na}
-        for i, s in ipairs(sts) do
+        local states = {CFG.infJump, CFG.antiRagdoll, CFG.noAnim}
+        for i, s in ipairs(states) do
             if s then
-                pcall(function()
-                    twn(dots[i], tw(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Size = UDim2.new(0, 13, 0, 13),
-                        Position = UDim2.new(0.5, -6.5, 0, 3.5),
+                _pCall(function()
+                    tween(indicatorDots[i], ti(0.9, _enumES.Sine, _enumED.InOut), {
+                        Size = _ud2(0, 14, 0, 14),
                     }):Play()
                 end)
             end
         end
-        task.wait(0.8)
+        _tWait(0.9)
         if not (SG and SG.Parent) then return end
-        for i, s in ipairs(sts) do
+        for i, s in ipairs(states) do
             if s then
-                pcall(function()
-                    twn(dots[i], tw(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Size = UDim2.new(0, 10, 0, 10),
-                        Position = UDim2.new(0.5, -5, 0, 5),
+                _pCall(function()
+                    tween(indicatorDots[i], ti(0.9, _enumES.Sine, _enumED.InOut), {
+                        Size = _ud2(0, 11, 0, 11),
                     }):Play()
                 end)
             end
         end
-        task.wait(0.8)
+        _tWait(0.9)
     end
 end)
 
 -- ═══ OPENING ANIMATION ═══
-MF.Size = UDim2.new(0, 44, 0, 44)
-MF.Position = UDim2.new(0.5, -22, 0.5, -22)
 MF.BackgroundTransparency = 1
 CT.Visible = false
-MFS.Transparency = 1
+mainStroke.Transparency = 1
+HD.BackgroundTransparency = 1
+HDP.BackgroundTransparency = 1
 
-task.delay(0.05, function()
-    -- Phase 1: dot
-    twn(MF, tw(0.15), {BackgroundTransparency = 0}):Play()
-    twn(MFS, tw(0.2), {Transparency = 0.55}):Play()
-    task.wait(0.12)
+-- Hide header children initially
+for _, child in ipairs(HD:GetDescendants()) do
+    _pCall(function()
+        if child:IsA("TextLabel") or child:IsA("TextButton") then
+            child.TextTransparency = 1
+        end
+        if child:IsA("Frame") then
+            child.BackgroundTransparency = 1
+        end
+    end)
+end
 
-    -- Phase 2: expand
-    twn(MF, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 380, 0, 520),
-        Position = UDim2.new(0.5, -190, 0.5, -260),
+_tDelay(0.06, function()
+    -- Phase 1: Appear as a small glowing dot
+    MF.Size = _ud2(0, 48, 0, 48)
+    MF.Position = _ud2(0.5, -24, 0.5, -24)
+    tween(MF, ti(0.2), {BackgroundTransparency = 0.02}):Play()
+    tween(mainStroke, ti(0.25), {Transparency = 0.3}):Play()
+    _tWait(0.15)
+
+    -- Phase 2: Expand smoothly
+    tween(MF, _twInfo(0.75, _enumES.Back, _enumED.Out), {
+        Size = _ud2(0, 400, 0, 560),
+        Position = _ud2(0.5, -200, 0.5, -280),
     }):Play()
-    task.wait(0.45)
+    _tWait(0.35)
 
-    -- Phase 3: content
+    -- Phase 3: Header fades in
+    tween(HD, ti(0.4), {BackgroundTransparency = 0.05}):Play()
+    tween(HDP, ti(0.4), {BackgroundTransparency = 0.05}):Play()
+
+    -- Fade in header children
+    for _, child in ipairs(HD:GetDescendants()) do
+        _pCall(function()
+            if child:IsA("TextLabel") then
+                tween(child, ti(0.5), {TextTransparency = 0}):Play()
+            end
+            if child:IsA("TextButton") then
+                tween(child, ti(0.5), {TextTransparency = 0, BackgroundTransparency = 0.4}):Play()
+            end
+            if child:IsA("Frame") and child ~= HDP then
+                local target = child.BackgroundTransparency
+                -- Restore to intended transparency
+                if child == logoRingFrames[1] then target = 0.78
+                elseif child == logoRingFrames[2] then target = 0.82
+                elseif child == logoRingFrames[3] then target = 0.86
+                elseif child == logoGlow then target = 0.45
+                else target = math.max(0, child.BackgroundTransparency - 0.2) end
+                tween(child, ti(0.5), {BackgroundTransparency = target}):Play()
+            end
+        end)
+    end
+
+    _tWait(0.35)
+
+    -- Phase 4: Show content
     CT.Visible = true
 
-    -- Phase 4: cascade modules
-    local kids = {}
-    for _, ch in ipairs(CT:GetChildren()) do
-        if ch:IsA("Frame") then
-            ch.BackgroundTransparency = 1
-            kids[#kids + 1] = ch
+    -- Phase 5: Cascade cards
+    local cardIndex = 0
+    for _, child in ipairs(CT:GetChildren()) do
+        if child:IsA("Frame") then
+            cardIndex = cardIndex + 1
+            local idx = cardIndex
+            child.BackgroundTransparency = 1
+
+            -- All children transparent initially
+            for _, desc in ipairs(child:GetDescendants()) do
+                _pCall(function()
+                    if desc:IsA("TextLabel") then desc.TextTransparency = 1 end
+                    if desc:IsA("Frame") then
+                        desc.BackgroundTransparency = 1
+                    end
+                    if desc:IsA("TextButton") then
+                        desc.TextTransparency = 1
+                        desc.BackgroundTransparency = 1
+                    end
+                end)
+            end
+
+            _tDelay(idx * 0.09, function()
+                -- Card appears
+                local targetBG = (child == SB) and 0.15 or 0.08
+                if child == separator then targetBG = 0.92 end
+
+                tween(child, _twInfo(0.5, _enumES.Quint), {
+                    BackgroundTransparency = targetBG,
+                }):Play()
+
+                -- Children fade in
+                _tDelay(0.08, function()
+                    for _, desc in ipairs(child:GetDescendants()) do
+                        _pCall(function()
+                            if desc:IsA("TextLabel") then
+                                tween(desc, ti(0.4), {TextTransparency = 0}):Play()
+                            end
+                            if desc:IsA("Frame") then
+                                -- Each frame has its own target transparency
+                                local ft = 0
+                                if desc.BackgroundTransparency == 1 then
+                                    -- Guess reasonable targets
+                                    if desc.Size.X.Offset <= 5 then ft = 0.3
+                                    elseif desc.Size.X.Offset <= 20 then ft = 0.5
+                                    else ft = 0.85 end
+                                end
+                                tween(desc, ti(0.4), {BackgroundTransparency = ft}):Play()
+                            end
+                            if desc:IsA("TextButton") then
+                                tween(desc, ti(0.4), {
+                                    TextTransparency = 0,
+                                    BackgroundTransparency = 0.4
+                                }):Play()
+                            end
+                        end)
+                    end
+                end)
+            end)
         end
     end
 
-    for i, ch in ipairs(kids) do
-        task.delay(i * 0.07, function()
-            local tgt = (ch == SB) and 0.2 or 0.1
-            local origPos = ch.Position
-            -- Slide in from right with fade
-            pcall(function()
-                ch.Position = UDim2.new(origPos.X.Scale + 0.08, origPos.X.Offset, origPos.Y.Scale, origPos.Y.Offset)
-            end)
-            twn(ch, tw(0.45, Enum.EasingStyle.Quint), {
-                BackgroundTransparency = tgt,
-                Position = origPos
-            }):Play()
-        end)
-    end
+    -- Final mainStroke settle
+    _tDelay(0.8, function()
+        tween(mainStroke, ti(0.5), {Transparency = 0.5}):Play()
+    end)
 end)
 
-updateSt()
+updateStatus()
