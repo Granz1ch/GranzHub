@@ -1,107 +1,19 @@
 --[[
-    ████████████████████████████████████████████████████
-    ██  GRANZ HUB · TERMINATOR v18.0 · CLASSIFIED    ██
-    ████████████████████████████████████████████████████
+    GRANZ HUB · TERMINATOR v18.0
 ]]
 
--- ═══════════ LAYER 0: ENVIRONMENT SPOOF ═══════════
-local _t0 = tick()
-local _c0 = os.clock()
-local _r0 = math.random(100000, 9999999)
-local _ENV_SEED = (_t0 % 1) * _c0 * _r0
-local _RNG = Random.new(math.floor(_ENV_SEED) % 2147483647)
+-- ═══════════ СЕРВИСЫ ═══════════
+local Players      = game:GetService("Players")
+local UIS          = game:GetService("UserInputService")
+local RunService   = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Lighting     = game:GetService("Lighting")
 
--- String obfuscation table
-local _S = {}
-do
-    local _raw = {
-        [1]  = "Workspace",
-        [2]  = "Players",
-        [3]  = "UserInputService",
-        [4]  = "RunService",
-        [5]  = "TweenService",
-        [6]  = "Lighting",
-        [7]  = "HumanoidRootPart",
-        [8]  = "Humanoid",
-        [9]  = "Animator",
-        [10] = "Motor6D",
-        [11] = "BasePart",
-        [12] = "BodyVelocity",
-        [13] = "BodyGyro",
-        [14] = "BodyForce",
-        [15] = "Highlight",
-        [16] = "BillboardGui",
-        [17] = "TextLabel",
-        [18] = "Frame",
-        [19] = "ScrollingFrame",
-        [20] = "TextButton",
-        [21] = "Part",
-        [22] = "Head",
-        [23] = "GetService",
-        [24] = "FindFirstChild",
-        [25] = "FindFirstChildOfClass",
-        [26] = "GetDescendants",
-        [27] = "GetChildren",
-        [28] = "WalkSpeed",
-        [29] = "JumpPower",
-        [30] = "Health",
-        [31] = "MaxHealth",
-        [32] = "PlatformStand",
-        [33] = "AssemblyLinearVelocity",
-        [34] = "AssemblyAngularVelocity",
-        [35] = "CFrame",
-        [36] = "CanCollide",
-        [37] = "Anchored",
-        [38] = "Transparency",
-        [39] = "BillboardGui",
-        [40] = "AlwaysOnTop",
-        [41] = "Character",
-        [42] = "LocalPlayer",
-        [43] = "PlayerGui",
-        [44] = "DisplayName",
-        [45] = "Name",
-    }
-    for k, v in pairs(_raw) do _S[k] = v end
-end
-
--- ID generator
-local function _genID(len)
-    len = len or _RNG:NextInteger(16, 28)
-    local buf = table.create(len)
-    for i = 1, len do
-        local r = _RNG:NextInteger(1, 62)
-        if r <= 26 then buf[i] = string.char(96 + r)
-        elseif r <= 52 then buf[i] = string.char(38 + r)
-        else buf[i] = string.char(r - 53 + 48) end
-    end
-    return table.concat(buf)
-end
-
-local function _jitter() return _RNG:NextNumber(0.001, 0.009) end
-local function _rF(a, b) return _RNG:NextNumber(a, b) end
-local function _rI(a, b) return _RNG:NextInteger(a, b) end
-
--- ═══════════ LAYER 1: SERVICE PROXY ═══════════
-local _SVC = setmetatable({}, {
-    __index = function(self, key)
-        local s, v = pcall(game[_S[23]], game, key)
-        if s and v then rawset(self, key, v) end
-        return v
-    end
-})
-
-local Players      = _SVC[_S[2]]
-local UIS          = _SVC[_S[3]]
-local RunService   = _SVC[_S[4]]
-local TweenService = _SVC[_S[5]]
-local Lighting     = _SVC[_S[6]]
-
-local LP    = Players[_S[42]]
-local PG    = LP:WaitForChild(_S[43])
+local LP    = Players.LocalPlayer
+local PG    = LP:WaitForChild("PlayerGui")
 local Cam   = workspace.CurrentCamera
-local Mouse = LP:GetMouse()
 
--- ═══════════ LAYER 2: ALIASED GLOBALS ═══════════
+-- ═══════════ АЛИАСЫ ═══════════
 local _tWait   = task.wait
 local _tDelay  = task.delay
 local _tSpawn  = task.spawn
@@ -112,7 +24,6 @@ local _v3      = Vector3.new
 local _v3z     = Vector3.zero
 local _cf      = CFrame.new
 local _cfLA    = CFrame.lookAt
-local _cfAng   = CFrame.Angles
 local _ud2     = UDim2.new
 local _udim    = UDim.new
 local _c3      = Color3.fromRGB
@@ -128,12 +39,10 @@ local _enumED  = Enum.EasingDirection
 local _enumHS  = Enum.HumanoidStateType
 local _enumUIT = Enum.UserInputType
 local _mFloor  = math.floor
-local _mCeil   = math.ceil
 local _mSin    = math.sin
 local _mCos    = math.cos
 local _mAbs    = math.abs
 local _mPi     = math.pi
-local _mRad    = math.rad
 local _mClamp  = math.clamp
 local _mHuge   = math.huge
 local _mSqrt   = math.sqrt
@@ -141,12 +50,8 @@ local _mAtan2  = math.atan2
 local _mMax    = math.max
 local _mMin    = math.min
 
--- Fake execution delay
-_tWait(_rF(0.01, 0.05))
-
--- ═══════════ MASTER CONFIG ═══════════
+-- ═══════════ КОНФИГ ═══════════
 local CFG = {
-    -- Movement
     infJump      = false,
     jumpPower    = 50,
     jumpCooldown = 0.12,
@@ -157,7 +62,6 @@ local CFG = {
     flySpeed     = 60,
     noclip       = false,
     lowGravity   = false,
-    -- Combat / Aimbot
     aimbot       = false,
     aimbotKey    = _enumKC.Q,
     aimbotFOV    = 200,
@@ -166,22 +70,18 @@ local CFG = {
     silentAim    = false,
     hitboxExp    = false,
     hitboxSize   = 6,
-    autoShoot    = false,
-    -- Defense
     antiRagdoll  = false,
     godMode      = false,
     noAnim       = false,
-    -- Visual
     esp          = false,
     fullbright   = false,
     noFog        = false,
     chams        = false,
     tracers      = false,
-    -- World
     bigHead      = false,
 }
 
--- ═══════════ STATE ═══════════
+-- ═══════════ СТЕЙТ ═══════════
 local _lastJump     = 0
 local _char, _hum, _rootPart, _animator
 local _ragConns     = {}
@@ -192,7 +92,6 @@ local _motorSnap    = {}
 local _fabricMotors = {}
 local _frameCount   = 0
 
--- Ghost / Ragdoll
 local _ghostActive  = false
 local _ghostPart    = nil
 local _ghostMovers  = {}
@@ -205,11 +104,9 @@ local _ragTimeout   = 8
 local _exitLock     = false
 local _lastExitTime = 0
 
--- Fly
 local _flyBV, _flyBG
 local _flying = false
 
--- ESP / Aimbot
 local _espObjects   = {}
 local _chamObjects  = {}
 local _tracerLines  = {}
@@ -220,69 +117,64 @@ local _origGravity  = workspace.Gravity
 local _origSpeed    = 16
 local _moduleConns  = {}
 
--- Aimbot internals
 local _aimbotTarget   = nil
 local _aimbotLocked   = false
 local _hitboxParts    = {}
-local _silentCF       = nil
 local _aimbotFOVPart  = nil
-local _lastSilentFire = 0
 
--- ═══════════ UTILITY ═══════════
+-- ═══════════ УТИЛИТЫ ═══════════
 local function _sf(obj, name)
-    local ok, r = _pCall(function() return obj[_S[24]](obj, name) end)
-    return ok and r
+    if not obj then return nil end
+    local ok, r = _pCall(function() return obj:FindFirstChild(name) end)
+    return ok and r or nil
 end
 
 local function _sfc(obj, cls)
-    local ok, r = _pCall(function() return obj[_S[25]](obj, cls) end)
-    return ok and r
+    if not obj then return nil end
+    local ok, r = _pCall(function() return obj:FindFirstChildOfClass(cls) end)
+    return ok and r or nil
 end
 
 local function _refreshChar()
-    _char     = LP[_S[41]]
+    _char     = LP.Character
     if not _char then return false end
-    _hum      = _sfc(_char, _S[8])
-    _rootPart = _sf(_char, _S[7])
-    _animator = _hum and _sfc(_hum, _S[9])
+    _hum      = _sfc(_char, "Humanoid")
+    _rootPart = _sf(_char, "HumanoidRootPart")
+    _animator = _hum and _sfc(_hum, "Animator")
     return _hum ~= nil and _rootPart ~= nil
 end
 _refreshChar()
 
 local function _safeCF()
     if _rootPart and _rootPart.Parent then
-        local ok, cf = _pCall(function() return _rootPart[_S[35]] end)
+        local ok, cf = _pCall(function() return _rootPart.CFrame end)
         if ok then return cf end
     end
     return nil
 end
 
--- Screen-space FOV check
 local function _inFOV(pos)
-    local _, onScreen = Cam:WorldToViewportPoint(pos)
+    local sp, onScreen = Cam:WorldToViewportPoint(pos)
     if not onScreen then return false end
     local vp = Cam.ViewportSize
-    local cx, cy = vp.X / 2, vp.Y / 2
-    local sp = Cam:WorldToViewportPoint(pos)
-    local dx = sp.X - cx
-    local dy = sp.Y - cy
+    local dx = sp.X - vp.X / 2
+    local dy = sp.Y - vp.Y / 2
     return _mSqrt(dx * dx + dy * dy) <= CFG.aimbotFOV
 end
 
--- ═══════════ AIMBOT ENGINE ═══════════
+-- ═══════════ AIMBOT ═══════════
 local function _getPlayerPart(player)
-    local ch = player[_S[41]]
+    local ch = player.Character
     if not ch then return nil end
-    local part = _sf(ch, CFG.aimbotPart) or _sf(ch, _S[7])
-    return part
+    return _sf(ch, CFG.aimbotPart) or _sf(ch, "HumanoidRootPart")
 end
 
 local function _isAlive(player)
-    local ch = player[_S[41]]
+    local ch = player.Character
     if not ch then return false end
-    local h = _sfc(ch, _S[8])
+    local h = _sfc(ch, "Humanoid")
     if not h then return false end
-    return h[_S[30]] > 0
+    return h.Health > 0
 end
 
 local function _getBestTarget()
@@ -310,7 +202,6 @@ local function _getBestTarget()
     return bestTarget
 end
 
--- Smooth aim step
 local function _stepAimbot()
     if not CFG.aimbot then return end
     if not UIS:IsKeyDown(CFG.aimbotKey) then
@@ -333,39 +224,19 @@ local function _stepAimbot()
         return
     end
 
-    local targetPos = part.Position
     local camCF = Cam.CFrame
-    local targetCF = _cfLA(camCF.Position, targetPos)
-
-    -- Smooth interpolation
-    local smooth = _mClamp(CFG.aimbotSmooth + _rF(-0.01, 0.01), 0.01, 1)
-    local newCF = camCF:Lerp(targetCF, smooth)
-
-    _pCall(function()
-        Cam.CFrame = newCF
-    end)
+    local targetCF = _cfLA(camCF.Position, part.Position)
+    local smooth = _mClamp(CFG.aimbotSmooth, 0.01, 1)
+    _pCall(function() Cam.CFrame = camCF:Lerp(targetCF, smooth) end)
 end
 
--- Silent aim – intercept fire origin
-local function _applySilentAim()
-    if not CFG.silentAim then return end
-    if not _aimbotTarget then
-        _aimbotTarget = _getBestTarget()
-    end
-    if not _aimbotTarget then return end
-    local part = _getPlayerPart(_aimbotTarget)
-    if not (part and part.Parent) then return end
-    _silentCF = _cfLA(Cam.CFrame.Position, part.Position)
-end
-
--- Hitbox expander
 local function _expandHitboxes()
     _hitboxParts = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP then
-            local ch = p[_S[41]]
+            local ch = p.Character
             if ch then
-                local head = _sf(ch, _S[22])
+                local head = _sf(ch, "Head")
                 if head then
                     _pCall(function()
                         local orig = head.Size
@@ -389,23 +260,20 @@ local function _restoreHitboxes()
     _hitboxParts = {}
 end
 
--- FOV Circle (purely client)
 local function _drawFOVCircle(sgRef)
     if _aimbotFOVPart then
         _pCall(function() _aimbotFOVPart:Destroy() end)
         _aimbotFOVPart = nil
     end
 
-    local sg = sgRef
-    local fovFrame = _iNew(_S[18])
-    fovFrame.Name = _genID(6)
+    local fovFrame = _iNew("Frame")
     fovFrame.Size = _ud2(0, CFG.aimbotFOV * 2, 0, CFG.aimbotFOV * 2)
     fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     fovFrame.Position = _ud2(0.5, 0, 0.5, 0)
     fovFrame.BackgroundTransparency = 1
     fovFrame.BorderSizePixel = 0
     fovFrame.ZIndex = 1
-    fovFrame.Parent = sg
+    fovFrame.Parent = sgRef
 
     local fovStroke = _iNew("UIStroke")
     fovStroke.Color = _c3(255, 50, 50)
@@ -420,14 +288,11 @@ local function _drawFOVCircle(sgRef)
 
     _aimbotFOVPart = fovFrame
 
-    -- Animate
     _tSpawn(function()
         while fovFrame and fovFrame.Parent and (CFG.aimbot or CFG.silentAim) do
             local locked = _aimbotLocked and _aimbotTarget ~= nil
-            local col = locked and _c3(255, 50, 50) or _c3(255, 255, 255)
-            local t2 = locked and 0.15 or 0.45
-            fovStroke.Color = col
-            fovStroke.Transparency = t2
+            fovStroke.Color = locked and _c3(255, 50, 50) or _c3(255, 255, 255)
+            fovStroke.Transparency = locked and 0.15 or 0.45
             _tWait(0.04)
         end
         _pCall(function() fovFrame:Destroy() end)
@@ -437,42 +302,21 @@ end
 -- ═══════════ INFINITE JUMP ═══════════
 local function _doJump()
     if not CFG.infJump then return end
-    local jumpRoot = _rootPart
-    if _ghostActive and _ghostPart and _ghostPart.Parent then jumpRoot = _ghostPart end
-    if not (jumpRoot and jumpRoot.Parent) then return end
-    if _hum and _hum[_S[30]] <= 0 then return end
+    if not (_rootPart and _rootPart.Parent) then return end
+    if _hum and _hum.Health <= 0 then return end
 
     local now = tick()
     if now - _lastJump < CFG.jumpCooldown then return end
     _lastJump = now
 
-    local cv = jumpRoot[_S[33]]
-    local newY = CFG.jumpPower
-    if cv.Y < CFG.maxFallVel then
-        newY = CFG.jumpPower + _mAbs(cv.Y) * 0.3
-    end
-
-    jumpRoot[_S[33]] = _v3(
-        cv.X * _rF(0.87, 0.93),
-        newY + _rF(-0.2, 0.2),
-        cv.Z * _rF(0.87, 0.93)
-    )
-
-    _tDelay(0.04 + _jitter(), function()
-        if jumpRoot and jumpRoot.Parent and CFG.infJump then
-            local v = jumpRoot[_S[33]]
-            if v.Y < CFG.jumpPower * 0.75 then
-                jumpRoot[_S[33]] = _v3(v.X, CFG.jumpPower * _rF(0.85, 0.95), v.Z)
-            end
-        end
-    end)
+    local cv = _rootPart.AssemblyLinearVelocity
+    _rootPart.AssemblyLinearVelocity = _v3(cv.X, CFG.jumpPower, cv.Z)
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == _enumKC.Space then
         if not _hum then return end
-        if _ghostActive then _doJump() return end
         if not _rootPart then return end
         local st = _hum:GetState()
         if st == _enumHS.Freefall or st == _enumHS.Jumping or st == _enumHS.FallingDown then
@@ -481,7 +325,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- ═══════════ ANTI-RAGDOLL v8 ═══════════
+-- ═══════════ ANTI-RAGDOLL ═══════════
 local _ragStates = {
     [_enumHS.Ragdoll]     = true,
     [_enumHS.FallingDown] = true,
@@ -494,9 +338,9 @@ local function _snapshotMotors()
     _motorSnap = {}
     if not _char then return end
     for _, v in ipairs(_char:GetDescendants()) do
-        if v:IsA(_S[10]) then
+        if v:IsA("Motor6D") then
             _motorSnap[#_motorSnap + 1] = {
-                ref = v, name = v[_S[45]], par = v.Parent,
+                ref = v, name = v.Name, par = v.Parent,
                 p0 = v.Part0, p1 = v.Part1, c0 = v.C0, c1 = v.C1,
             }
         end
@@ -510,15 +354,15 @@ local function _restoreMotors()
             if d.ref and d.ref.Parent then d.ref.Enabled = true return end
             if not (d.par and d.par.Parent and d.p0 and d.p0.Parent and d.p1 and d.p1.Parent) then return end
             local ex = d.par:FindFirstChild(d.name)
-            if ex and ex:IsA(_S[10]) then ex.Enabled = true d.ref = ex return end
-            local m = _iNew(_S[10])
-            m[_S[45]] = d.name
+            if ex and ex:IsA("Motor6D") then ex.Enabled = true d.ref = ex return end
+            local m = _iNew("Motor6D")
+            m.Name  = d.name
             m.Part0 = d.p0
             m.Part1 = d.p1
-            m.C0 = d.c0
-            m.C1 = d.c1
+            m.C0    = d.c0
+            m.C1    = d.c1
             m.Parent = d.par
-            d.ref = m
+            d.ref   = m
             _fabricMotors[#_fabricMotors + 1] = m
         end)
     end
@@ -529,8 +373,7 @@ local function _nukeConstraints()
     local bad = {
         BallSocketConstraint=true, HingeConstraint=true,
         NoCollisionConstraint=true, RopeConstraint=true,
-        SpringConstraint=true, CylindricalConstraint=true,
-        PrismaticConstraint=true,
+        SpringConstraint=true,
     }
     for _, v in ipairs(_char:GetDescendants()) do
         _pCall(function() if bad[v.ClassName] then v:Destroy() end end)
@@ -541,41 +384,38 @@ local function _spawnGhost()
     if _ghostPart and _ghostPart.Parent then return end
     if not (_rootPart and _rootPart.Parent and _char) then return end
 
-    local cf = _preRagCF or _rootPart[_S[35]]
-    local g = _iNew(_S[21])
-    g[_S[45]] = _genID(14)
+    local cf = _preRagCF or _rootPart.CFrame
+    local g = _iNew("Part")
+    g.Name = "GhostPart"
     g.Size = _v3(2, 2, 1)
-    g[_S[38]] = 1
-    g[_S[36]] = true
+    g.Transparency = 1
+    g.CanCollide = false
     g.CanQuery = false
     g.CanTouch = false
-    g[_S[37]] = false
+    g.Anchored = false
     g.Massless = false
-    g[_S[35]] = cf
+    g.CFrame = cf
     g.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
     g.Parent = workspace
 
     _ghostPart = g
     _ghostCF = cf
 
-    local bv = _iNew(_S[12])
-    bv[_S[45]] = _genID(8)
+    local bv = _iNew("BodyVelocity")
     bv.MaxForce = _v3(15000, 0, 15000)
-    bv.Velocity = _v3z
+    bv.Velocity  = _v3z
     bv.P = 2500
     bv.Parent = g
     _ghostMovers.bv = bv
 
-    local bg = _iNew(_S[13])
-    bg[_S[45]] = _genID(8)
+    local bg = _iNew("BodyGyro")
     bg.MaxTorque = _v3(0, 15000, 0)
     bg.P = 5000
     bg.D = 200
     bg.Parent = g
     _ghostMovers.bg = bg
 
-    local bf = _iNew(_S[14])
-    bf[_S[45]] = _genID(8)
+    local bf = _iNew("BodyForce")
     bf.Force = _v3(0, g:GetMass() * workspace.Gravity * 0.18, 0)
     bf.Parent = g
     _ghostMovers.bf = bf
@@ -587,36 +427,33 @@ local function _controlGhost()
     if not _ghostActive then return end
     if not (_ghostPart and _ghostPart.Parent) then _ghostActive = false return end
 
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-
-    local moveDir = _v3z
-    local camCF = cam[_S[35]]
+    local camCF = Cam.CFrame
     local fwd = _v3(camCF.LookVector.X, 0, camCF.LookVector.Z)
     if fwd.Magnitude > 0.001 then fwd = fwd.Unit end
     local rgt = _v3(camCF.RightVector.X, 0, camCF.RightVector.Z)
     if rgt.Magnitude > 0.001 then rgt = rgt.Unit end
 
+    local moveDir = _v3z
     if UIS:IsKeyDown(_enumKC.W) then moveDir = moveDir + fwd end
     if UIS:IsKeyDown(_enumKC.S) then moveDir = moveDir - fwd end
     if UIS:IsKeyDown(_enumKC.D) then moveDir = moveDir + rgt end
     if UIS:IsKeyDown(_enumKC.A) then moveDir = moveDir - rgt end
 
     local spd = 16
-    _pCall(function() if _hum then spd = _hum[_S[28]] end end)
+    _pCall(function() if _hum then spd = _hum.WalkSpeed end end)
 
     if moveDir.Magnitude > 0.01 then
         moveDir = moveDir.Unit * spd
         if _ghostMovers.bg then
             _pCall(function()
-                _ghostMovers.bg[_S[35]] = _cfLA(_v3z, _v3(moveDir.X, 0, moveDir.Z))
+                _ghostMovers.bg.CFrame = _cfLA(_v3z, _v3(moveDir.X, 0, moveDir.Z))
             end)
         end
     end
 
     if _ghostMovers.bv then _ghostMovers.bv.Velocity = _v3(moveDir.X, 0, moveDir.Z) end
-    _pCall(function() cam.CameraSubject = _ghostPart end)
-    _ghostCF = _ghostPart[_S[35]]
+    _pCall(function() Cam.CameraSubject = _ghostPart end)
+    _ghostCF = _ghostPart.CFrame
 end
 
 local function _killGhost(doTeleport)
@@ -624,22 +461,22 @@ local function _killGhost(doTeleport)
     for _, v in pairs(_ghostMovers) do _pCall(function() v:Destroy() end) end
     _ghostMovers = {}
     if _ghostPart then _pCall(function() _ghostPart:Destroy() end) _ghostPart = nil end
-    _pCall(function() if _hum then workspace.CurrentCamera.CameraSubject = _hum end end)
+    _pCall(function() if _hum then Cam.CameraSubject = _hum end end)
     _ghostActive = false
 
     if doTeleport and finalCF and _rootPart and _rootPart.Parent then
         _pCall(function()
             for _, v in ipairs(_char:GetDescendants()) do
-                if v:IsA(_S[11]) then
+                if v:IsA("BasePart") then
                     _pCall(function()
-                        v[_S[33]] = _v3z
-                        v[_S[34]] = _v3z
+                        v.AssemblyLinearVelocity  = _v3z
+                        v.AssemblyAngularVelocity = _v3z
                     end)
                 end
             end
-            _rootPart[_S[35]] = finalCF
-            _rootPart[_S[33]] = _v3z
-            _rootPart[_S[34]] = _v3z
+            _rootPart.CFrame = finalCF
+            _rootPart.AssemblyLinearVelocity  = _v3z
+            _rootPart.AssemblyAngularVelocity = _v3z
         end)
     end
     return finalCF
@@ -656,47 +493,47 @@ local function _exitRagdoll()
     if not (_hum and _char and _rootPart) then
         _killGhost(false)
         _exitingRag = false
-        _ragActive = false
-        _exitLock = false
+        _ragActive  = false
+        _exitLock   = false
         return
     end
-    if _hum[_S[30]] <= 0 then
+    if _hum.Health <= 0 then
         _killGhost(false)
         _exitingRag = false
-        _ragActive = false
-        _exitLock = false
+        _ragActive  = false
+        _exitLock   = false
         return
     end
 
     local finalCF = _killGhost(true)
-    _pCall(function() _hum[_S[32]] = false end)
+    _pCall(function() _hum.PlatformStand = false end)
     _nukeConstraints()
     _restoreMotors()
 
     for _, v in ipairs(_char:GetDescendants()) do
-        if v:IsA(_S[11]) then _pCall(function() v[_S[37]] = false end) end
+        if v:IsA("BasePart") then _pCall(function() v.Anchored = false end) end
     end
     _pCall(function() _hum:ChangeState(_enumHS.GettingUp) end)
 
-    _tDelay(0.1 + _jitter(), function()
+    _tDelay(0.1, function()
         if not CFG.antiRagdoll then _exitingRag=false _ragActive=false _exitLock=false return end
         _pCall(function()
-            if _hum and _hum[_S[30]] > 0 then
-                _hum[_S[32]] = false
+            if _hum and _hum.Health > 0 then
+                _hum.PlatformStand = false
                 _nukeConstraints()
                 _restoreMotors()
                 if finalCF and _rootPart and _rootPart.Parent then
                     local dist = (_rootPart.Position - finalCF.Position).Magnitude
                     if dist > 4 then
                         for _, v in ipairs(_char:GetDescendants()) do
-                            if v:IsA(_S[11]) then
+                            if v:IsA("BasePart") then
                                 _pCall(function()
-                                    v[_S[33]] = _v3z
-                                    v[_S[34]] = _v3z
+                                    v.AssemblyLinearVelocity  = _v3z
+                                    v.AssemblyAngularVelocity = _v3z
                                 end)
                             end
                         end
-                        _rootPart[_S[35]] = finalCF
+                        _rootPart.CFrame = finalCF
                     end
                 end
                 _hum:ChangeState(_enumHS.Running)
@@ -704,10 +541,10 @@ local function _exitRagdoll()
         end)
     end)
 
-    _tDelay(0.4 + _jitter(), function()
+    _tDelay(0.4, function()
         _pCall(function()
-            if _hum and _hum[_S[30]] > 0 then
-                _hum[_S[32]] = false
+            if _hum and _hum.Health > 0 then
+                _hum.PlatformStand = false
                 local st = _hum:GetState()
                 if _isRagdoll(st) or st == _enumHS.PlatformStanding then
                     _nukeConstraints()
@@ -717,26 +554,26 @@ local function _exitRagdoll()
                         _pCall(function() _hum:ChangeState(_enumHS.Running) end)
                     end)
                 end
-                if not _ghostActive then workspace.CurrentCamera.CameraSubject = _hum end
+                if not _ghostActive then Cam.CameraSubject = _hum end
             end
         end)
         _exitingRag = false
-        _ragActive = false
+        _ragActive  = false
         _tDelay(0.8, function() _exitLock = false end)
     end)
 end
 
 local function _onRagdollStart()
     if _ragActive or _exitingRag or _exitLock then return end
-    if not (_hum and _hum[_S[30]] > 0) then return end
+    if not (_hum and _hum.Health > 0) then return end
     _preRagCF = _safeCF()
     _ragActive = true
-    _ragStart = tick()
+    _ragStart  = tick()
 
-    _tDelay(0.03 + _jitter(), function()
+    _tDelay(0.03, function()
         if not CFG.antiRagdoll then _ragActive=false return end
         if not _ragActive or _exitingRag or _exitLock then _ragActive=false return end
-        if _hum and _hum[_S[30]] <= 0 then _ragActive=false return end
+        if _hum and _hum.Health <= 0 then _ragActive=false return end
         _spawnGhost()
     end)
 end
@@ -744,20 +581,20 @@ end
 local function _checkRagdollEnd()
     if not _ragActive or _exitingRag or _exitLock then return end
     if not (_hum and _char) then return end
-    if _hum[_S[30]] <= 0 then _killGhost(false) _ragActive=false return end
+    if _hum.Health <= 0 then _killGhost(false) _ragActive=false return end
     if tick() - _ragStart > _ragTimeout then _exitRagdoll() return end
 
     local st = _hum:GetState()
     local ps = false
-    _pCall(function() ps = _hum[_S[32]] end)
+    _pCall(function() ps = _hum.PlatformStand end)
     if not _isRagdoll(st) and st ~= _enumHS.PlatformStanding and not ps then
         _tDelay(0.08, function()
             if not _ragActive or _exitingRag or _exitLock then return end
             if not _hum then return end
-            if _hum[_S[30]] <= 0 then _killGhost(false) _ragActive=false return end
+            if _hum.Health <= 0 then _killGhost(false) _ragActive=false return end
             local st2 = _hum:GetState()
             local ps2 = false
-            _pCall(function() ps2 = _hum[_S[32]] end)
+            _pCall(function() ps2 = _hum.PlatformStand end)
             if not _isRagdoll(st2) and st2 ~= _enumHS.PlatformStanding and not ps2 then
                 _exitRagdoll()
             end
@@ -770,7 +607,7 @@ _tSpawn(function()
         _tWait(0.15)
         if _char and _hum and _rootPart and _rootPart.Parent then
             if not _ragActive and not _exitingRag and not _exitLock then
-                if _hum[_S[30]] > 0 then
+                if _hum.Health > 0 then
                     local st = _hum:GetState()
                     if not _isRagdoll(st) and st ~= _enumHS.PlatformStanding then
                         _preRagCF = _safeCF()
@@ -788,22 +625,22 @@ local function _startAntiRagdoll()
     local c1 = _hum.StateChanged:Connect(function(_, ns)
         if not CFG.antiRagdoll or _exitLock then return end
         if _isRagdoll(ns) or ns == _enumHS.PlatformStanding then
-            _tDelay(_jitter(), _onRagdollStart)
+            _tDelay(0, _onRagdollStart)
         end
     end)
     _ragConns[#_ragConns+1] = c1
 
-    local c2 = _hum:GetPropertyChangedSignal(_S[32]):Connect(function()
+    local c2 = _hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
         if not CFG.antiRagdoll or _exitLock then return end
-        if _hum[_S[32]] and not _ragActive then _tDelay(_jitter(), _onRagdollStart) end
+        if _hum.PlatformStand and not _ragActive then _tDelay(0, _onRagdollStart) end
     end)
     _ragConns[#_ragConns+1] = c2
 
     local c3 = _char.DescendantAdded:Connect(function(v)
         if not CFG.antiRagdoll or _exitLock then return end
-        _tDelay(_jitter(), function()
+        _tDelay(0, function()
             _pCall(function()
-                if v:IsA("BallSocketConstraint") or v:IsA("HingeConstraint") or v:IsA("NoCollisionConstraint") then
+                if v:IsA("BallSocketConstraint") or v:IsA("HingeConstraint") then
                     if not _ragActive and not _exitingRag and not _exitLock then _onRagdollStart() end
                 end
             end)
@@ -813,8 +650,8 @@ local function _startAntiRagdoll()
 
     local c4 = _char.DescendantRemoving:Connect(function(v)
         if not CFG.antiRagdoll or _exitLock then return end
-        if v:IsA(_S[10]) then
-            local data = {name=v[_S[45]], par=v.Parent, p0=v.Part0, p1=v.Part1, c0=v.C0, c1=v.C1}
+        if v:IsA("Motor6D") then
+            local data = {name=v.Name, par=v.Parent, p0=v.Part0, p1=v.Part1, c0=v.C0, c1=v.C1}
             local found = false
             for _, s in ipairs(_motorSnap) do
                 if s.name == data.name and s.par == data.par then
@@ -833,7 +670,9 @@ local function _stopAntiRagdoll()
     _ragConns = {}
     _killGhost(false)
     _ragActive=false _exitingRag=false _exitLock=false
-    for _, m in ipairs(_fabricMotors) do _pCall(function() if m and m.Parent then m:Destroy() end end) end
+    for _, m in ipairs(_fabricMotors) do
+        _pCall(function() if m and m.Parent then m:Destroy() end end)
+    end
     _fabricMotors={} _motorSnap={}
 end
 
@@ -844,9 +683,7 @@ local function _hookTrack(track)
     local c = track:GetPropertyChangedSignal("IsPlaying"):Connect(function()
         if not CFG.noAnim then return end
         if track.IsPlaying then
-            _tDelay(_jitter(), function()
-                _pCall(function() track:AdjustSpeed(0) track:AdjustWeight(0, 0) end)
-            end)
+            _pCall(function() track:AdjustSpeed(0) track:AdjustWeight(0, 0) end)
         end
     end)
     _animConns[#_animConns+1] = c
@@ -870,7 +707,7 @@ local function _hookAnimator()
         local c = _animator.AnimationPlayed:Connect(function(t)
             _hookTrack(t)
             if CFG.noAnim then
-                _tDelay(_jitter(), function()
+                _tDelay(0, function()
                     _pCall(function() t:AdjustSpeed(0) t:AdjustWeight(0, 0) end)
                 end)
             end
@@ -878,7 +715,8 @@ local function _hookAnimator()
         _animConns[#_animConns+1] = c
     end)
     if _hum then
-        for _, evt in ipairs({"Running","Jumping","Climbing","Swimming","FreeFalling"}) do
+        local evts = {"Running","Jumping","Climbing","Swimming","FreeFalling"}
+        for _, evt in ipairs(evts) do
             _pCall(function()
                 local c = _hum[evt]:Connect(function()
                     if CFG.noAnim then _tDefer(_stopAllTracks) end
@@ -901,7 +739,9 @@ local function _stopNoAnim()
     for _, c in ipairs(_animConns) do _pCall(function() c:Disconnect() end) end
     _animConns = {}
     for t in pairs(_trackedAnims) do
-        _pCall(function() if t and t.IsPlaying then t:AdjustSpeed(1) t:AdjustWeight(1, 0.1) end end)
+        _pCall(function()
+            if t and t.IsPlaying then t:AdjustSpeed(1) t:AdjustWeight(1, 0.1) end
+        end)
     end
     _trackedAnims = {}
 end
@@ -909,11 +749,11 @@ end
 -- ═══════════ SPEED ═══════════
 local function _startSpeed()
     _refreshChar()
-    if _hum then _origSpeed = _hum[_S[28]] _hum[_S[28]] = CFG.speedValue end
+    if _hum then _origSpeed = _hum.WalkSpeed _hum.WalkSpeed = CFG.speedValue end
 end
 
 local function _stopSpeed()
-    if _hum then _hum[_S[28]] = _origSpeed end
+    if _hum then _hum.WalkSpeed = _origSpeed end
 end
 
 -- ═══════════ FLY ═══════════
@@ -924,15 +764,13 @@ local function _startFly()
     if _flyBV then _pCall(function() _flyBV:Destroy() end) end
     if _flyBG then _pCall(function() _flyBG:Destroy() end) end
 
-    _flyBV = _iNew(_S[12])
-    _flyBV[_S[45]] = _genID(8)
+    _flyBV = _iNew("BodyVelocity")
     _flyBV.MaxForce = _v3(1e5, 1e5, 1e5)
-    _flyBV.Velocity = _v3z
+    _flyBV.Velocity  = _v3z
     _flyBV.P = 9000
     _flyBV.Parent = _rootPart
 
-    _flyBG = _iNew(_S[13])
-    _flyBG[_S[45]] = _genID(8)
+    _flyBG = _iNew("BodyGyro")
     _flyBG.MaxTorque = _v3(1e5, 1e5, 1e5)
     _flyBG.P = 9000
     _flyBG.D = 500
@@ -944,24 +782,23 @@ local function _controlFly()
     if not (_flyBV and _flyBV.Parent and _flyBG and _flyBG.Parent) then return end
     if not (_rootPart and _rootPart.Parent) then return end
 
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-
+    local camCF = Cam.CFrame
     local moveDir = _v3z
-    local camCF = cam[_S[35]]
 
     if UIS:IsKeyDown(_enumKC.W) then moveDir = moveDir + camCF.LookVector end
     if UIS:IsKeyDown(_enumKC.S) then moveDir = moveDir - camCF.LookVector end
     if UIS:IsKeyDown(_enumKC.A) then moveDir = moveDir - camCF.RightVector end
     if UIS:IsKeyDown(_enumKC.D) then moveDir = moveDir + camCF.RightVector end
-    if UIS:IsKeyDown(_enumKC.Space) then moveDir = moveDir + _v3(0, 1, 0) end
+    if UIS:IsKeyDown(_enumKC.Space) then
+        moveDir = moveDir + _v3(0, 1, 0)
+    end
     if UIS:IsKeyDown(_enumKC.LeftControl) or UIS:IsKeyDown(_enumKC.LeftShift) then
         moveDir = moveDir - _v3(0, 1, 0)
     end
 
     if moveDir.Magnitude > 0.01 then moveDir = moveDir.Unit * CFG.flySpeed end
-    _flyBV.Velocity = moveDir
-    _flyBG[_S[35]] = camCF
+    _flyBV.Velocity  = moveDir
+    _flyBG.CFrame    = camCF
 end
 
 local function _stopFly()
@@ -978,7 +815,7 @@ local function _startNoclip()
         _pCall(function()
             if _char then
                 for _, v in ipairs(_char:GetDescendants()) do
-                    if v:IsA(_S[11]) then v[_S[36]] = false end
+                    if v:IsA("BasePart") then v.CanCollide = false end
                 end
             end
         end)
@@ -990,7 +827,9 @@ local function _stopNoclip()
     _pCall(function()
         if _char then
             for _, v in ipairs(_char:GetDescendants()) do
-                if v:IsA(_S[11]) and v[_S[45]] ~= _S[7] then v[_S[36]] = true end
+                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                    v.CanCollide = true
+                end
             end
         end
     end)
@@ -1001,7 +840,7 @@ local function _createESP(player)
     if player == LP then return end
 
     local function makeHighlight()
-        local ch = player[_S[41]]
+        local ch = player.Character
         if not ch then return end
 
         if _espObjects[player] then
@@ -1009,8 +848,7 @@ local function _createESP(player)
         end
         _espObjects[player] = {}
 
-        local hl = _iNew(_S[15])
-        hl[_S[45]] = _genID(6)
+        local hl = _iNew("Highlight")
         hl.FillColor = _c3(255, 50, 50)
         hl.FillTransparency = 0.65
         hl.OutlineColor = _c3(255, 255, 255)
@@ -1019,25 +857,24 @@ local function _createESP(player)
         hl.Adornee = ch
         hl.Parent = ch
 
-        local bbg = _iNew(_S[16])
-        bbg[_S[45]] = _genID(6)
+        local bbg = _iNew("BillboardGui")
         bbg.Size = _ud2(0, 130, 0, 36)
         bbg.StudsOffset = _v3(0, 3.8, 0)
-        bbg[_S[40]] = true
-        bbg.Adornee = _sf(ch, _S[22]) or _sf(ch, _S[7])
+        bbg.AlwaysOnTop = true
+        bbg.Adornee = _sf(ch, "Head") or _sf(ch, "HumanoidRootPart")
         bbg.Parent = ch
 
-        local nameTag = _iNew(_S[17])
+        local nameTag = _iNew("TextLabel")
         nameTag.Size = _ud2(1, 0, 0.55, 0)
         nameTag.BackgroundTransparency = 1
-        nameTag.Text = player[_S[44]]
+        nameTag.Text = player.DisplayName
         nameTag.TextColor3 = _c3(255, 255, 255)
         nameTag.TextStrokeTransparency = 0.25
         nameTag.TextSize = 13
         nameTag.Font = Enum.Font.GothamBold
         nameTag.Parent = bbg
 
-        local distTag = _iNew(_S[17])
+        local distTag = _iNew("TextLabel")
         distTag.Size = _ud2(1, 0, 0.3, 0)
         distTag.Position = _ud2(0, 0, 0.55, 0)
         distTag.BackgroundTransparency = 1
@@ -1048,7 +885,7 @@ local function _createESP(player)
         distTag.Font = Enum.Font.Gotham
         distTag.Parent = bbg
 
-        local hpBG = _iNew(_S[18])
+        local hpBG = _iNew("Frame")
         hpBG.Size = _ud2(0.7, 0, 0, 4)
         hpBG.Position = _ud2(0.15, 0, 1, 2)
         hpBG.BackgroundColor3 = _c3(20, 20, 20)
@@ -1056,7 +893,7 @@ local function _createESP(player)
         hpBG.Parent = bbg
         local hc = _iNew("UICorner") hc.CornerRadius = _udim(0, 2) hc.Parent = hpBG
 
-        local hpFill = _iNew(_S[18])
+        local hpFill = _iNew("Frame")
         hpFill.Size = _ud2(1, 0, 1, 0)
         hpFill.BackgroundColor3 = _c3(50, 255, 100)
         hpFill.BorderSizePixel = 0
@@ -1069,26 +906,21 @@ local function _createESP(player)
             while CFG.esp and bbg and bbg.Parent and ch and ch.Parent do
                 _pCall(function()
                     if _rootPart and _rootPart.Parent then
-                        local hrp = _sf(ch, _S[7])
+                        local hrp = _sf(ch, "HumanoidRootPart")
                         if hrp then
                             local dist = (_rootPart.Position - hrp.Position).Magnitude
                             distTag.Text = _mFloor(dist) .. " studs"
                         end
                     end
-                    local h2 = _sfc(ch, _S[8])
+                    local h2 = _sfc(ch, "Humanoid")
                     if h2 then
-                        local ratio = _mClamp(h2[_S[30]] / h2[_S[31]], 0, 1)
+                        local ratio = _mClamp(h2.Health / h2.MaxHealth, 0, 1)
                         hpFill.Size = _ud2(ratio, 0, 1, 0)
                         if ratio > 0.6 then hpFill.BackgroundColor3 = _c3(50, 255, 100)
                         elseif ratio > 0.3 then hpFill.BackgroundColor3 = _c3(255, 200, 50)
                         else hpFill.BackgroundColor3 = _c3(255, 50, 50) end
 
-                        -- Color ESP by team or aimbot lock
-                        if _aimbotTarget == player then
-                            hl.OutlineColor = _c3(255, 50, 50)
-                        else
-                            hl.OutlineColor = _c3(255, 255, 255)
-                        end
+                        hl.OutlineColor = (_aimbotTarget == player) and _c3(255, 50, 50) or _c3(255, 255, 255)
                     end
                 end)
                 _tWait(0.12)
@@ -1096,7 +928,7 @@ local function _createESP(player)
         end)
     end
 
-    if player[_S[41]] then makeHighlight() end
+    if player.Character then makeHighlight() end
     local conn = player.CharacterAdded:Connect(function()
         _tWait(0.5)
         if CFG.esp then makeHighlight() end
@@ -1125,12 +957,11 @@ local function _startChams()
         while CFG.chams do
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP then
-                    local ch = p[_S[41]]
+                    local ch = p.Character
                     if ch then
                         _pCall(function()
                             if _chamObjects[p] then return end
-                            local hl = _iNew(_S[15])
-                            hl[_S[45]] = _genID(6)
+                            local hl = _iNew("Highlight")
                             hl.FillColor = _c3h((_frameCount * 0.01) % 1, 0.8, 1)
                             hl.FillTransparency = 0.3
                             hl.OutlineColor = _c3(255, 255, 255)
@@ -1157,22 +988,22 @@ end
 
 -- ═══════════ TRACERS ═══════════
 local _tracerGui = nil
-local _tracerCanvas = nil
 
 local function _startTracers(sgRef)
     if _tracerGui then _pCall(function() _tracerGui:Destroy() end) end
 
-    _tracerGui = _iNew(_S[19])
-    _tracerGui[_S[45]] = _genID(8)
+    _tracerGui = _iNew("ScrollingFrame")
     _tracerGui.Size = _ud2(1, 0, 1, 0)
     _tracerGui.BackgroundTransparency = 1
     _tracerGui.ZIndex = 1
+    _tracerGui.ScrollBarThickness = 0
     _tracerGui.Parent = sgRef
 
     _tSpawn(function()
         while CFG.tracers and _tracerGui and _tracerGui.Parent do
-            -- Clean old
-            for _, v in ipairs(_tracerGui:GetChildren()) do _pCall(function() v:Destroy() end) end
+            for _, v in ipairs(_tracerGui:GetChildren()) do
+                _pCall(function() v:Destroy() end)
+            end
 
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP and _isAlive(p) then
@@ -1192,7 +1023,7 @@ local function _startTracers(sgRef)
                         local len = _mSqrt(dx * dx + dy * dy)
                         local angle = _mAtan2(dy, dx)
 
-                        local line = _iNew(_S[18])
+                        local line = _iNew("Frame")
                         line.Size = _ud2(0, len, 0, 1.5)
                         line.Position = _ud2(0, startX, 0, startY)
                         line.AnchorPoint = Vector2.new(0, 0.5)
@@ -1202,8 +1033,6 @@ local function _startTracers(sgRef)
                         line.Rotation = math.deg(angle)
                         line.ZIndex = 2
                         line.Parent = _tracerGui
-
-                        _tracerLines[p] = line
                     end)
                 end
             end
@@ -1224,10 +1053,12 @@ local function _startGodMode()
     _refreshChar()
     if not _hum then return end
     if _godConn then _pCall(function() _godConn:Disconnect() end) end
-    _godConn = _hum:GetPropertyChangedSignal(_S[30]):Connect(function()
-        if CFG.godMode and _hum then _pCall(function() _hum[_S[30]] = _hum[_S[31]] end) end
+    _godConn = _hum:GetPropertyChangedSignal("Health"):Connect(function()
+        if CFG.godMode and _hum then
+            _pCall(function() _hum.Health = _hum.MaxHealth end)
+        end
     end)
-    _pCall(function() _hum[_S[30]] = _hum[_S[31]] end)
+    _pCall(function() _hum.Health = _hum.MaxHealth end)
 end
 
 local function _stopGodMode()
@@ -1238,32 +1069,32 @@ end
 local function _startFullbright()
     _pCall(function()
         _origAmbient = Lighting.Ambient
-        _origBright = Lighting.Brightness
-        Lighting.Ambient = _c3(255, 255, 255)
+        _origBright  = Lighting.Brightness
+        Lighting.Ambient    = _c3(255, 255, 255)
         Lighting.Brightness = 2
     end)
 end
 
 local function _stopFullbright()
     _pCall(function()
-        if _origAmbient then Lighting.Ambient = _origAmbient end
-        if _origBright then Lighting.Brightness = _origBright end
+        if _origAmbient then Lighting.Ambient    = _origAmbient end
+        if _origBright  then Lighting.Brightness = _origBright  end
     end)
 end
 
 -- ═══════════ NO FOG ═══════════
 local function _startNoFog()
     _pCall(function()
-        _origFogEnd = Lighting.FogEnd
+        _origFogEnd   = Lighting.FogEnd
         _origFogStart = Lighting.FogStart
-        Lighting.FogEnd = 1e10
+        Lighting.FogEnd   = 1e10
         Lighting.FogStart = 1e10
     end)
 end
 
 local function _stopNoFog()
     _pCall(function()
-        if _origFogEnd then Lighting.FogEnd = _origFogEnd end
+        if _origFogEnd   then Lighting.FogEnd   = _origFogEnd   end
         if _origFogStart then Lighting.FogStart = _origFogStart end
     end)
 end
@@ -1283,19 +1114,21 @@ local function _startBigHead()
     _tSpawn(function()
         while CFG.bigHead do
             for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LP and p[_S[41]] then
+                if p ~= LP and p.Character then
                     _pCall(function()
-                        local head = _sf(p[_S[41]], _S[22])
-                        if head then head.Size = _v3(CFG.hitboxSize + 2, CFG.hitboxSize + 2, CFG.hitboxSize + 2) end
+                        local head = _sf(p.Character, "Head")
+                        if head then
+                            head.Size = _v3(CFG.hitboxSize + 2, CFG.hitboxSize + 2, CFG.hitboxSize + 2)
+                        end
                     end)
                 end
             end
             _tWait(0.5)
         end
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP and p[_S[41]] then
+            if p ~= LP and p.Character then
                 _pCall(function()
-                    local head = _sf(p[_S[41]], _S[22])
+                    local head = _sf(p.Character, "Head")
                     if head then head.Size = _v3(2, 1, 1) end
                 end)
             end
@@ -1308,7 +1141,7 @@ _heartbeatC = RunService.Heartbeat:Connect(function()
     _frameCount = _frameCount + 1
 
     if not (_char and _char.Parent) then _refreshChar() return end
-    if not (_hum and _hum[_S[30]] > 0) then
+    if not (_hum and _hum.Health > 0) then
         if _ghostActive then _killGhost(false) _ragActive = false end
         return
     end
@@ -1320,7 +1153,7 @@ _heartbeatC = RunService.Heartbeat:Connect(function()
             _ghostActive = false
             local st = _hum:GetState()
             local ps = false
-            _pCall(function() ps = _hum[_S[32]] end)
+            _pCall(function() ps = _hum.PlatformStand end)
             if _isRagdoll(st) or st == _enumHS.PlatformStanding or ps then
                 _spawnGhost()
             else
@@ -1332,20 +1165,17 @@ _heartbeatC = RunService.Heartbeat:Connect(function()
     if CFG.noAnim and _frameCount % 3 == 0 then _stopAllTracks() end
     if CFG.fly then _controlFly() end
     if CFG.speed and _hum and _frameCount % 12 == 0 then
-        _pCall(function() _hum[_S[28]] = CFG.speedValue end)
+        _pCall(function() _hum.WalkSpeed = CFG.speedValue end)
     end
 
-    -- Aimbot
     if (CFG.aimbot or CFG.silentAim) and _frameCount % 2 == 0 then
         _stepAimbot()
     end
 
-    -- Hitbox expander loop
     if CFG.hitboxExp and _frameCount % 30 == 0 then
         _expandHitboxes()
     end
 
-    -- Chams color cycle
     if CFG.chams and _frameCount % 8 == 0 then
         local h = (_frameCount * 0.003) % 1
         for _, hl in pairs(_chamObjects) do
@@ -1356,12 +1186,12 @@ end)
 
 -- ═══════════ RESPAWN ═══════════
 LP.CharacterAdded:Connect(function()
-    _tWait(_rF(0.3, 0.5))
+    _tWait(0.4)
     _killGhost(false)
     _ragActive=false _exitingRag=false _exitLock=false _preRagCF=nil
     _stopFly()
     _refreshChar()
-    _tWait(_rF(0.15, 0.25))
+    _tWait(0.2)
     if CFG.antiRagdoll then _stopAntiRagdoll() _startAntiRagdoll() end
     if CFG.noAnim then _stopNoAnim() _tWait(0.12) _startNoAnim() end
     if CFG.speed then _startSpeed() end
@@ -1371,12 +1201,11 @@ LP.CharacterAdded:Connect(function()
     if CFG.hitboxExp then _expandHitboxes() end
 end)
 
-
 -- ══════════════════════════════════════════════════
--- ══════════ GUI v18.0 · TERMINATOR ════════════════
+-- ══════════ GUI v18.0
 -- ══════════════════════════════════════════════════
 
-local _guiName = _genID(22)
+-- Удаляем старые копии
 for _, g in ipairs(PG:GetChildren()) do
     _pCall(function()
         if g:IsA("ScreenGui") and g:GetAttribute("_txTag") then g:Destroy() end
@@ -1384,40 +1213,37 @@ for _, g in ipairs(PG:GetChildren()) do
 end
 
 local SG = _iNew("ScreenGui")
-SG[_S[45]] = _guiName
+SG.Name = "GranzHub"
 SG:SetAttribute("_txTag", true)
 SG.ResetOnSpawn = false
 SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-SG.DisplayOrder = _rI(2, 8)
+SG.DisplayOrder = 5
 SG.IgnoreGuiInset = false
 SG.Parent = PG
 
--- ═══ PALETTE ═══
+-- ═══ ПАЛИТРА ═══
 local P = {
     bg       = _c3(4, 4, 12),
     bgCard   = _c3(8, 8, 22),
     bgDeep   = _c3(3, 3, 9),
     header   = _c3(6, 6, 18),
-
-    acc1  = _c3(130, 80, 255),   -- Purple
-    acc2  = _c3(40, 195, 255),   -- Cyan
-    acc3  = _c3(255, 45, 85),    -- Red
-    acc4  = _c3(255, 195, 55),   -- Gold
-    acc5  = _c3(55, 255, 150),   -- Green
-    acc6  = _c3(255, 110, 220),  -- Pink
-    acc7  = _c3(255, 130, 50),   -- Orange
-    acc8  = _c3(100, 210, 255),  -- Light blue
-
+    acc1  = _c3(130, 80, 255),
+    acc2  = _c3(40, 195, 255),
+    acc3  = _c3(255, 45, 85),
+    acc4  = _c3(255, 195, 55),
+    acc5  = _c3(55, 255, 150),
+    acc6  = _c3(255, 110, 220),
+    acc7  = _c3(255, 130, 50),
+    acc8  = _c3(100, 210, 255),
     textW = _c3(240, 240, 252),
     textD = _c3(55, 55, 85),
     textG = _c3(55, 255, 130),
-
     tOff  = _c3(16, 16, 30),
     tKnob = _c3(75, 75, 100),
     bord  = _c3(22, 22, 44),
 }
 
--- ═══ HELPERS ═══
+-- ═══ ХЕЛПЕРЫ ═══
 local function corner(p, r)
     local c = _iNew("UICorner")
     c.CornerRadius = _udim(0, r or 12)
@@ -1446,7 +1272,7 @@ end
 local function grad(p, colors, rot, trans)
     local g = _iNew("UIGradient")
     g.Color = colors or _csNew{_csk(0, P.acc1), _csk(1, P.acc2)}
-    if rot then g.Rotation = rot end
+    if rot   then g.Rotation = rot end
     if trans then g.Transparency = trans end
     g.Parent = p
     return g
@@ -1459,9 +1285,9 @@ local function makeDraggable(frame, handle)
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == _enumUIT.MouseButton1 or
            input.UserInputType == _enumUIT.Touch then
-            dragging = true
+            dragging  = true
             dragStart = input.Position
-            startPos = frame.Position
+            startPos  = frame.Position
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
@@ -1472,16 +1298,17 @@ local function makeDraggable(frame, handle)
                          input.UserInputType == _enumUIT.Touch) then
             local delta = input.Position - dragStart
             tw(frame, ti(0.05, _enumES.Quad), {
-                Position = _ud2(startPos.X.Scale, startPos.X.Offset + delta.X,
-                                startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                Position = _ud2(
+                    startPos.X.Scale, startPos.X.Offset + delta.X,
+                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                )
             }):Play()
         end
     end)
 end
 
--- ═══ MAIN FRAME ═══
-local MF = _iNew(_S[18])
-MF[_S[45]] = _genID(6)
+-- ═══ ГЛАВНЫЙ ФРЕЙМ ═══
+local MF = _iNew("Frame")
 MF.Size = _ud2(0, 460, 0, 660)
 MF.Position = _ud2(0.5, -230, 0.5, -330)
 MF.BackgroundColor3 = P.bg
@@ -1494,7 +1321,7 @@ corner(MF, 20)
 
 local mainStroke = stroke(MF, P.acc1, 1.5, 0.5)
 
--- Aurora background
+-- Aurora orbs
 local auroraOrbs = {}
 local auroraData = {
     {_ud2(0,-100,0,-100), P.acc1, 300, 0.90},
@@ -1508,8 +1335,7 @@ local auroraData = {
     {_ud2(0.5,0,0.02,0),  P.acc7, 90,  0.96},
 }
 for i, od in ipairs(auroraData) do
-    local o = _iNew(_S[18])
-    o[_S[45]] = _genID(3)
+    local o = _iNew("Frame")
     o.Size = _ud2(0, od[3], 0, od[3])
     o.Position = od[1]
     o.BackgroundColor3 = od[2]
@@ -1517,13 +1343,12 @@ for i, od in ipairs(auroraData) do
     o.BorderSizePixel = 0
     o.ZIndex = 0
     o.Parent = MF
-    corner(o, _mFloor(od[3]/2))
+    corner(o, math.floor(od[3]/2))
     auroraOrbs[i] = o
 end
 
--- ═══ HEADER ═══
-local HD = _iNew(_S[18])
-HD[_S[45]] = _genID(4)
+-- ═══ ХЕДЕР ═══
+local HD = _iNew("Frame")
 HD.Size = _ud2(1, 0, 0, 80)
 HD.BackgroundColor3 = P.header
 HD.BackgroundTransparency = 0.02
@@ -1532,7 +1357,7 @@ HD.ZIndex = 5
 HD.Parent = MF
 corner(HD, 20)
 
-local HDP = _iNew(_S[18])
+local HDP = _iNew("Frame")
 HDP.Size = _ud2(1, 0, 0, 26)
 HDP.Position = _ud2(0, 0, 1, -26)
 HDP.BackgroundColor3 = P.header
@@ -1543,8 +1368,8 @@ HDP.Parent = HD
 
 makeDraggable(MF, HD)
 
--- Separator
-local sepLine = _iNew(_S[18])
+-- Separator line
+local sepLine = _iNew("Frame")
 sepLine.Size = _ud2(0.96, 0, 0, 2.5)
 sepLine.Position = _ud2(0.02, 0, 1, 0)
 sepLine.BackgroundColor3 = P.textW
@@ -1564,13 +1389,15 @@ _tSpawn(function()
     local off = 0
     while SG and SG.Parent do
         off = (off + 0.001) % 1
-        _pCall(function() sepGrad.Offset = Vector2.new(_mSin(off * _mPi * 2) * 0.3, 0) end)
+        _pCall(function()
+            sepGrad.Offset = Vector2.new(_mSin(off * _mPi * 2) * 0.3, 0)
+        end)
         _tWait(0.02)
     end
 end)
 
--- Logo
-local logoCont = _iNew(_S[18])
+-- Логотип
+local logoCont = _iNew("Frame")
 logoCont.Size = _ud2(0, 60, 0, 60)
 logoCont.Position = _ud2(0, 12, 0.5, -30)
 logoCont.BackgroundTransparency = 1
@@ -1580,7 +1407,7 @@ logoCont.Parent = HD
 local logoRings = {}
 local ringDat = {{60,0.73,22},{48,0.77,16},{38,0.81,12}}
 for i, rd in ipairs(ringDat) do
-    local ring = _iNew(_S[18])
+    local ring = _iNew("Frame")
     ring.Size = _ud2(0, rd[1], 0, rd[1])
     ring.AnchorPoint = Vector2.new(0.5, 0.5)
     ring.Position = _ud2(0.5, 0, 0.5, 0)
@@ -1589,12 +1416,12 @@ for i, rd in ipairs(ringDat) do
     ring.BorderSizePixel = 0
     ring.ZIndex = 6+i
     ring.Parent = logoCont
-    corner(ring, _mFloor(rd[1]/2))
+    corner(ring, math.floor(rd[1]/2))
     if i < 3 then stroke(ring, P.acc1, 0.6, 0.4+i*0.1) end
     logoRings[i] = ring
 end
 
-local logoGlow = _iNew(_S[18])
+local logoGlow = _iNew("Frame")
 logoGlow.Size = _ud2(0, 24, 0, 24)
 logoGlow.AnchorPoint = Vector2.new(0.5, 0.5)
 logoGlow.Position = _ud2(0.5, 0, 0.5, 0)
@@ -1604,7 +1431,7 @@ logoGlow.ZIndex = 10
 logoGlow.Parent = logoCont
 corner(logoGlow, 12)
 
-local logoTxt = _iNew(_S[17])
+local logoTxt = _iNew("TextLabel")
 logoTxt.Size = _ud2(1, 0, 1, 0)
 logoTxt.BackgroundTransparency = 1
 logoTxt.Text = "T"
@@ -1614,8 +1441,8 @@ logoTxt.Font = Enum.Font.GothamBlack
 logoTxt.ZIndex = 11
 logoTxt.Parent = logoRings[3]
 
--- Title
-local titleLbl = _iNew(_S[17])
+-- Заголовок
+local titleLbl = _iNew("TextLabel")
 titleLbl.Size = _ud2(0, 220, 0, 28)
 titleLbl.Position = _ud2(0, 84, 0, 8)
 titleLbl.BackgroundTransparency = 1
@@ -1627,11 +1454,11 @@ titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 titleLbl.ZIndex = 6
 titleLbl.Parent = HD
 
-local subLbl = _iNew(_S[17])
+local subLbl = _iNew("TextLabel")
 subLbl.Size = _ud2(0, 300, 0, 14)
 subLbl.Position = _ud2(0, 84, 0, 38)
 subLbl.BackgroundTransparency = 1
-subLbl.Text = "terminator · v18.0 · unified · stealth"
+subLbl.Text = "terminator · v18.0 · unified"
 subLbl.TextColor3 = P.textD
 subLbl.TextSize = 9
 subLbl.Font = Enum.Font.GothamMedium
@@ -1639,7 +1466,7 @@ subLbl.TextXAlignment = Enum.TextXAlignment.Left
 subLbl.ZIndex = 6
 subLbl.Parent = HD
 
--- Badges
+-- Бейджи
 local badgeDat = {
     {"TERMINATOR", P.acc1},
     {"v18.0",      P.acc5},
@@ -1648,7 +1475,7 @@ local badgeDat = {
 }
 local bx = 84
 for _, bd in ipairs(badgeDat) do
-    local bf2 = _iNew(_S[18])
+    local bf2 = _iNew("Frame")
     bf2.Size = _ud2(0, #bd[1]*5.2+16, 0, 17)
     bf2.Position = _ud2(0, bx, 0, 56)
     bf2.BackgroundColor3 = bd[2]
@@ -1659,7 +1486,7 @@ for _, bd in ipairs(badgeDat) do
     corner(bf2, 6)
     stroke(bf2, bd[2], 0.5, 0.55)
 
-    local bl2 = _iNew(_S[17])
+    local bl2 = _iNew("TextLabel")
     bl2.Size = _ud2(1, 0, 1, 0)
     bl2.BackgroundTransparency = 1
     bl2.Text = bd[1]
@@ -1672,9 +1499,9 @@ for _, bd in ipairs(badgeDat) do
     bx = bx + #bd[1]*5.2+20
 end
 
--- Header buttons
+-- Кнопки хедера
 local function makeHdrBtn(pos, text, col)
-    local btn = _iNew(_S[20])
+    local btn = _iNew("TextButton")
     btn.Size = _ud2(0, 36, 0, 36)
     btn.Position = pos
     btn.BackgroundColor3 = col
@@ -1696,13 +1523,12 @@ end
 local MinBtn = makeHdrBtn(_ud2(1,-88,0,22), "━", _c3(30,30,50))
 local ClsBtn = makeHdrBtn(_ud2(1,-48,0,22), "✕", _c3(140,22,35))
 
--- ═══ TAB SYSTEM ═══
+-- ═══ ТАБЫ ═══
 local currentTab = "combat"
-local tabButtons = {}
+local tabButtons  = {}
 local tabContents = {}
 
-local tabBar = _iNew(_S[18])
-tabBar[_S[45]] = _genID(4)
+local tabBar = _iNew("Frame")
 tabBar.Size = _ud2(1, -12, 0, 36)
 tabBar.Position = _ud2(0, 6, 0, 84)
 tabBar.BackgroundColor3 = P.bgDeep
@@ -1716,11 +1542,11 @@ local tabLayout = _iNew("UIListLayout")
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
 tabLayout.Padding = _udim(0, 3)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
 tabLayout.Parent = tabBar
 
 local tabPad = _iNew("UIPadding")
-tabPad.PaddingLeft = _udim(0, 3)
+tabPad.PaddingLeft  = _udim(0, 3)
 tabPad.PaddingRight = _udim(0, 3)
 tabPad.Parent = tabBar
 
@@ -1732,7 +1558,7 @@ local tabsDef = {
     {id="aimbot",   icon="🤖", name="Aimbot",   color=P.acc7},
 }
 
-local contentFrame = _iNew(_S[18])
+local contentFrame = _iNew("Frame")
 contentFrame.Size = _ud2(1,-12,1,-148)
 contentFrame.Position = _ud2(0,6,0,124)
 contentFrame.BackgroundTransparency = 1
@@ -1740,8 +1566,8 @@ contentFrame.ZIndex = 3
 contentFrame.Parent = MF
 
 for _, td in ipairs(tabsDef) do
-    local scroll = _iNew(_S[19])
-    scroll[_S[45]] = td.id
+    local scroll = _iNew("ScrollingFrame")
+    scroll.Name = td.id
     scroll.Size = _ud2(1,0,1,0)
     scroll.BackgroundTransparency = 1
     scroll.BorderSizePixel = 0
@@ -1760,10 +1586,10 @@ for _, td in ipairs(tabsDef) do
     layout.Parent = scroll
 
     local pad = _iNew("UIPadding")
-    pad.PaddingTop = _udim(0,3)
+    pad.PaddingTop    = _udim(0,3)
     pad.PaddingBottom = _udim(0,14)
-    pad.PaddingLeft = _udim(0,2)
-    pad.PaddingRight = _udim(0,2)
+    pad.PaddingLeft   = _udim(0,2)
+    pad.PaddingRight  = _udim(0,2)
     pad.Parent = scroll
 
     tabContents[td.id] = scroll
@@ -1772,17 +1598,17 @@ end
 local function switchTab(tabId)
     currentTab = tabId
     for id, btn in pairs(tabButtons) do
-        local td
-        for _, t in ipairs(tabsDef) do if t.id==id then td=t break end end
+        local td2
+        for _, t in ipairs(tabsDef) do if t.id==id then td2=t break end end
         if id == tabId then
-            tw(btn, ti(0.3), {BackgroundColor3=td.color, BackgroundTransparency=0.1}):Play()
+            tw(btn, ti(0.3), {BackgroundColor3=td2.color, BackgroundTransparency=0.1}):Play()
             for _, ch in ipairs(btn:GetChildren()) do
-                if ch:IsA(_S[17]) then tw(ch, ti(0.3), {TextColor3=_c3(255,255,255)}):Play() end
+                if ch:IsA("TextLabel") then tw(ch, ti(0.3), {TextColor3=_c3(255,255,255)}):Play() end
             end
         else
             tw(btn, ti(0.3), {BackgroundColor3=P.bgDeep, BackgroundTransparency=0.55}):Play()
             for _, ch in ipairs(btn:GetChildren()) do
-                if ch:IsA(_S[17]) then tw(ch, ti(0.3), {TextColor3=P.textD}):Play() end
+                if ch:IsA("TextLabel") then tw(ch, ti(0.3), {TextColor3=P.textD}):Play() end
             end
         end
     end
@@ -1790,8 +1616,8 @@ local function switchTab(tabId)
 end
 
 for _, td in ipairs(tabsDef) do
-    local btn = _iNew(_S[20])
-    btn[_S[45]] = td.id
+    local btn = _iNew("TextButton")
+    btn.Name = td.id
     btn.Size = _ud2(0, 80, 0, 28)
     btn.BackgroundColor3 = P.bgDeep
     btn.BackgroundTransparency = 0.55
@@ -1802,7 +1628,7 @@ for _, td in ipairs(tabsDef) do
     btn.Parent = tabBar
     corner(btn, 8)
 
-    local iL = _iNew(_S[17])
+    local iL = _iNew("TextLabel")
     iL.Size = _ud2(0, 16, 1, 0)
     iL.Position = _ud2(0, 5, 0, 0)
     iL.BackgroundTransparency = 1
@@ -1813,7 +1639,7 @@ for _, td in ipairs(tabsDef) do
     iL.ZIndex = 6
     iL.Parent = btn
 
-    local nL = _iNew(_S[17])
+    local nL = _iNew("TextLabel")
     nL.Size = _ud2(1,-24,1,0)
     nL.Position = _ud2(0,22,0,0)
     nL.BackgroundTransparency = 1
@@ -1829,9 +1655,9 @@ for _, td in ipairs(tabsDef) do
     tabButtons[td.id] = btn
 end
 
--- ═══ SLIDER COMPONENT ═══
+-- ═══ СЛАЙДЕР ═══
 local function createSlider(parent, labelText, minVal, maxVal, currentVal, color, order, onChange)
-    local sliderCard = _iNew(_S[18])
+    local sliderCard = _iNew("Frame")
     sliderCard.Size = _ud2(1, 0, 0, 56)
     sliderCard.BackgroundColor3 = P.bgCard
     sliderCard.BackgroundTransparency = 0.05
@@ -1843,17 +1669,7 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     corner(sliderCard, 14)
     stroke(sliderCard, P.bord, 0.6, 0.55)
 
-    -- Glass
-    local glass = _iNew(_S[18])
-    glass.Size = _ud2(1,0,0.5,0)
-    glass.BackgroundColor3 = _c3(255,255,255)
-    glass.BackgroundTransparency = 0.97
-    glass.BorderSizePixel = 0
-    glass.ZIndex = 3
-    glass.Parent = sliderCard
-    corner(glass, 14)
-
-    local sLabel = _iNew(_S[17])
+    local sLabel = _iNew("TextLabel")
     sLabel.Size = _ud2(0.6,0,0,18)
     sLabel.Position = _ud2(0,12,0,6)
     sLabel.BackgroundTransparency = 1
@@ -1865,7 +1681,7 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     sLabel.ZIndex = 4
     sLabel.Parent = sliderCard
 
-    local valLabel = _iNew(_S[17])
+    local valLabel = _iNew("TextLabel")
     valLabel.Size = _ud2(0.35,0,0,18)
     valLabel.Position = _ud2(0.65,0,0,6)
     valLabel.BackgroundTransparency = 1
@@ -1877,7 +1693,7 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     valLabel.ZIndex = 4
     valLabel.Parent = sliderCard
 
-    local trackBG = _iNew(_S[18])
+    local trackBG = _iNew("Frame")
     trackBG.Size = _ud2(1,-24,0,6)
     trackBG.Position = _ud2(0,12,0,34)
     trackBG.BackgroundColor3 = _c3(20,20,38)
@@ -1886,7 +1702,7 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     trackBG.Parent = sliderCard
     corner(trackBG, 3)
 
-    local trackFill = _iNew(_S[18])
+    local trackFill = _iNew("Frame")
     local initRatio = (currentVal - minVal) / (maxVal - minVal)
     trackFill.Size = _ud2(initRatio, 0, 1, 0)
     trackFill.BackgroundColor3 = color
@@ -1896,7 +1712,7 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     corner(trackFill, 3)
     grad(trackFill, _csNew{_csk(0,color),_csk(1,P.acc2)})
 
-    local knobBtn = _iNew(_S[18])
+    local knobBtn = _iNew("Frame")
     knobBtn.Size = _ud2(0,14,0,14)
     knobBtn.AnchorPoint = Vector2.new(0.5,0.5)
     knobBtn.Position = _ud2(initRatio,0,0.5,0)
@@ -1907,9 +1723,9 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     corner(knobBtn, 7)
     stroke(knobBtn, color, 1.5, 0)
 
-    -- Drag
     local draggingSlider = false
-    local sliderBtn = _iNew(_S[20])
+
+    local sliderBtn = _iNew("TextButton")
     sliderBtn.Size = _ud2(1,0,1,20)
     sliderBtn.Position = _ud2(0,0,0,-10)
     sliderBtn.BackgroundTransparency = 1
@@ -1919,14 +1735,13 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
 
     local function updateSlider(absX)
         local abs = trackBG.AbsolutePosition.X
-        local w = trackBG.AbsoluteSize.X
+        local w   = trackBG.AbsoluteSize.X
         local ratio = _mClamp((absX - abs) / w, 0, 1)
-        local val = _mFloor(minVal + (maxVal - minVal) * ratio)
+        local val   = math.floor(minVal + (maxVal - minVal) * ratio)
         valLabel.Text = tostring(val)
-        tw(trackFill, ti(0.05), {Size = _ud2(ratio,0,1,0)}):Play()
-        tw(knobBtn, ti(0.05), {Position = _ud2(ratio,0,0.5,0)}):Play()
+        tw(trackFill, ti(0.05), {Size=_ud2(ratio,0,1,0)}):Play()
+        tw(knobBtn,   ti(0.05), {Position=_ud2(ratio,0,0.5,0)}):Play()
         if onChange then onChange(val) end
-        return val
     end
 
     sliderBtn.InputBegan:Connect(function(inp)
@@ -1948,15 +1763,17 @@ local function createSlider(parent, labelText, minVal, maxVal, currentVal, color
     return sliderCard
 end
 
--- ═══ MODULE CARD FACTORY ═══
+-- ═══ МОДУЛЬНЫЕ КАРТОЧКИ ═══
 local allModuleData = {}
+
+-- updateStatus объявляем заранее как forward-declaration
+local updateStatus
 
 local function createModule(tabId, icon, name, desc, order, accentColor, tags, cfgKey, onEnable, onDisable)
     local parentScroll = tabContents[tabId]
     if not parentScroll then return end
 
-    local card = _iNew(_S[18])
-    card[_S[45]] = _genID(5)
+    local card = _iNew("Frame")
     card.Size = _ud2(1,0,0,88)
     card.BackgroundColor3 = P.bgCard
     card.BackgroundTransparency = 0.04
@@ -1969,7 +1786,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
 
     local cardStroke = stroke(card, P.bord, 0.6, 0.55)
 
-    local glass = _iNew(_S[18])
+    local glass = _iNew("Frame")
     glass.Size = _ud2(1,0,0.45,0)
     glass.BackgroundColor3 = _c3(255,255,255)
     glass.BackgroundTransparency = 0.97
@@ -1978,7 +1795,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     glass.Parent = card
     corner(glass, 16)
 
-    local leftBar = _iNew(_S[18])
+    local leftBar = _iNew("Frame")
     leftBar.Size = _ud2(0,3,0.35,0)
     leftBar.Position = _ud2(0,0,0.325,0)
     leftBar.BackgroundColor3 = accentColor
@@ -1988,7 +1805,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     leftBar.Parent = card
     corner(leftBar, 2)
 
-    local iconBg = _iNew(_S[18])
+    local iconBg = _iNew("Frame")
     iconBg.Size = _ud2(0,48,0,48)
     iconBg.Position = _ud2(0,12,0,10)
     iconBg.BackgroundColor3 = accentColor
@@ -1998,7 +1815,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     iconBg.Parent = card
     corner(iconBg, 15)
 
-    local iconInner = _iNew(_S[18])
+    local iconInner = _iNew("Frame")
     iconInner.Size = _ud2(0,32,0,32)
     iconInner.AnchorPoint = Vector2.new(0.5,0.5)
     iconInner.Position = _ud2(0.5,0,0.5,0)
@@ -2009,7 +1826,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     iconInner.Parent = iconBg
     corner(iconInner, 10)
 
-    local iconLabel = _iNew(_S[17])
+    local iconLabel = _iNew("TextLabel")
     iconLabel.Size = _ud2(1,0,1,0)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = icon
@@ -2018,7 +1835,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     iconLabel.ZIndex = 6
     iconLabel.Parent = iconInner
 
-    local nameLabel = _iNew(_S[17])
+    local nameLabel = _iNew("TextLabel")
     nameLabel.Size = _ud2(1,-140,0,20)
     nameLabel.Position = _ud2(0,70,0,12)
     nameLabel.BackgroundTransparency = 1
@@ -2030,7 +1847,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     nameLabel.ZIndex = 4
     nameLabel.Parent = card
 
-    local descLabel = _iNew(_S[17])
+    local descLabel = _iNew("TextLabel")
     descLabel.Size = _ud2(1,-140,0,12)
     descLabel.Position = _ud2(0,70,0,33)
     descLabel.BackgroundTransparency = 1
@@ -2045,7 +1862,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     if tags then
         local tx = 70
         for _, tagText in ipairs(tags) do
-            local tf = _iNew(_S[18])
+            local tf = _iNew("Frame")
             tf.Size = _ud2(0,#tagText*5+14,0,15)
             tf.Position = _ud2(0,tx,0,51)
             tf.BackgroundColor3 = accentColor
@@ -2055,7 +1872,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
             tf.Parent = card
             corner(tf, 5)
 
-            local tl = _iNew(_S[17])
+            local tl = _iNew("TextLabel")
             tl.Size = _ud2(1,0,1,0)
             tl.BackgroundTransparency = 1
             tl.Text = tagText
@@ -2069,7 +1886,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
         end
     end
 
-    local bottomLine = _iNew(_S[18])
+    local bottomLine = _iNew("Frame")
     bottomLine.Size = _ud2(0,0,0,2)
     bottomLine.AnchorPoint = Vector2.new(0.5,0)
     bottomLine.Position = _ud2(0.5,0,1,-3)
@@ -2081,7 +1898,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     corner(bottomLine, 1)
     grad(bottomLine, _csNew{_csk(0,accentColor),_csk(0.5,P.acc2),_csk(1,accentColor)})
 
-    local toggleBtn = _iNew(_S[20])
+    local toggleBtn = _iNew("TextButton")
     toggleBtn.Size = _ud2(0,52,0,26)
     toggleBtn.Position = _ud2(1,-64,0.5,-13)
     toggleBtn.BackgroundColor3 = P.tOff
@@ -2093,7 +1910,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     corner(toggleBtn, 13)
     local toggleStroke = stroke(toggleBtn, P.bord, 0.5, 0.5)
 
-    local knob = _iNew(_S[18])
+    local knob = _iNew("Frame")
     knob.Size = _ud2(0,20,0,20)
     knob.Position = _ud2(0,3,0.5,-10)
     knob.BackgroundColor3 = P.tKnob
@@ -2103,7 +1920,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     corner(knob, 10)
     local knobStroke = stroke(knob, accentColor, 0, 0.8)
 
-    local knobDot = _iNew(_S[18])
+    local knobDot = _iNew("Frame")
     knobDot.Size = _ud2(0,7,0,7)
     knobDot.AnchorPoint = Vector2.new(0.5,0.5)
     knobDot.Position = _ud2(0.5,0,0.5,0)
@@ -2114,7 +1931,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
     knobDot.Parent = knob
     corner(knobDot, 4)
 
-    local hoverBtn = _iNew(_S[20])
+    local hoverBtn = _iNew("TextButton")
     hoverBtn.Size = _ud2(1,0,1,0)
     hoverBtn.BackgroundTransparency = 1
     hoverBtn.Text = ""
@@ -2150,13 +1967,7 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
             tw(cardStroke, t, {Color=accentColor, Transparency=0.18}):Play()
             tw(leftBar, t, {BackgroundTransparency=0}):Play()
             tw(iconInner, t, {BackgroundTransparency=0.48}):Play()
-            tw(toggleBtn, _twInfo(0.1,_enumES.Quad,_enumED.Out,0,true), {Size=_ud2(0,56,0,30)}):Play()
             tw(bottomLine, _twInfo(0.4,_enumES.Quint), {Size=_ud2(0.88,0,0,2.5), BackgroundTransparency=0.08}):Play()
-            _tDelay(0.5, function()
-                if isOn then _pCall(function()
-                    tw(bottomLine, ti(0.6), {Size=_ud2(0.28,0,0,2), BackgroundTransparency=0.3}):Play()
-                end) end
-            end)
         else
             tw(toggleBtn, t, {BackgroundColor3=P.tOff}):Play()
             tw(toggleStroke, t, {Color=P.bord, Transparency=0.5}):Play()
@@ -2181,19 +1992,19 @@ local function createModule(tabId, icon, name, desc, order, accentColor, tags, c
         else
             if onDisable then onDisable() end
         end
-        updateStatus()
+        if updateStatus then updateStatus() end
     end)
 
     return toggleBtn, setVisual
 end
 
--- ═══ MODULES ═══
+-- ═══ СОЗДАНИЕ МОДУЛЕЙ ═══
 
 -- COMBAT
 createModule("combat","🛡️","God Mode","Бесконечное здоровье",
     1,P.acc3,{"IMMORTAL","v2"},"godMode",_startGodMode,_stopGodMode)
 createModule("combat","👻","Anti-Ragdoll","Ghost-контроль при рагдолле",
-    2,P.acc2,{"GHOST","v8","FIXED"},"antiRagdoll",_startAntiRagdoll,_stopAntiRagdoll)
+    2,P.acc2,{"GHOST","v8"},"antiRagdoll",_startAntiRagdoll,_stopAntiRagdoll)
 createModule("combat","💀","Big Head","Увеличивает головы врагов",
     3,P.acc7,{"HITBOX","PVP"},"bigHead",_startBigHead,function() CFG.bigHead=false end)
 createModule("combat","📦","Hitbox Expand","Расширить хитбокс цели",
@@ -2202,46 +2013,49 @@ createModule("combat","📦","Hitbox Expand","Расширить хитбокс 
 -- MOVEMENT
 createModule("movement","⚡","Infinite Jump","Прыжки в воздухе",
     1,P.acc1,{"AIR","MULTI"},"infJump",function() end,function() end)
-createModule("movement","🏃","Speed Hack","Ускорение х2",
-    2,P.acc4,{"FAST","x2"},"speed",_startSpeed,_stopSpeed)
+createModule("movement","🏃","Speed Hack","Ускорение",
+    2,P.acc4,{"FAST"},"speed",_startSpeed,_stopSpeed)
 createModule("movement","🕊️","Fly","Свободный полёт",
     3,P.acc8,{"FLY","3D"},"fly",_startFly,_stopFly)
 createModule("movement","👤","Noclip","Проход сквозь стены",
-    4,P.acc6,{"PHASE","CLIP"},"noclip",_startNoclip,_stopNoclip)
+    4,P.acc6,{"PHASE"},"noclip",_startNoclip,_stopNoclip)
 createModule("movement","🌙","Low Gravity","Пониженная гравитация",
-    5,_c3(180,130,255),{"MOON","FLOAT"},"lowGravity",_startLowGravity,_stopLowGravity)
+    5,_c3(180,130,255),{"MOON"},"lowGravity",_startLowGravity,_stopLowGravity)
 
 -- VISUAL
 createModule("visual","🎭","No Animations","Заморозка анимаций",
-    1,P.acc3,{"FREEZE","SILENT"},"noAnim",_startNoAnim,_stopNoAnim)
+    1,P.acc3,{"FREEZE"},"noAnim",_startNoAnim,_stopNoAnim)
 createModule("visual","👁️","ESP","Видеть игроков сквозь стены",
     2,P.acc5,{"WALLHACK","HP"},"esp",_startESP,_stopESP)
 createModule("visual","🌈","Chams","Цветная подсветка тел",
-    3,P.acc6,{"CHAMS","RGB"},"chams",_startChams,_stopChams)
+    3,P.acc6,{"RGB"},"chams",_startChams,_stopChams)
 createModule("visual","📍","Tracers","Линии к игрокам",
-    4,P.acc4,{"LINE","TRACK"},"tracers",function() _startTracers(SG) end,_stopTracers)
+    4,P.acc4,{"LINE"},"tracers",function() _startTracers(SG) end,_stopTracers)
 
 -- WORLD
 createModule("world","☀️","Fullbright","Максимальная яркость",
-    1,P.acc4,{"BRIGHT","LIGHT"},"fullbright",_startFullbright,_stopFullbright)
+    1,P.acc4,{"BRIGHT"},"fullbright",_startFullbright,_stopFullbright)
 createModule("world","🌫️","No Fog","Убрать туман",
-    2,P.acc8,{"CLEAR","VIEW"},"noFog",_startNoFog,_stopNoFog)
+    2,P.acc8,{"CLEAR"},"noFog",_startNoFog,_stopNoFog)
 
--- AIMBOT TAB — Toggle + Sliders
-createModule("aimbot","🎯","Aimbot","Автоприцеливание (удерживай Q)",
-    1,P.acc7,{"AUTO","LOCK","SMOOTH"},"aimbot",
+-- AIMBOT
+createModule("aimbot","🎯","Aimbot","Автоприцеливание (Q)",
+    1,P.acc7,{"AUTO","LOCK"},"aimbot",
     function() _drawFOVCircle(SG) end,
     function()
         _aimbotTarget=nil _aimbotLocked=false
-        if _aimbotFOVPart then _pCall(function() _aimbotFOVPart:Destroy() end) _aimbotFOVPart=nil end
+        if _aimbotFOVPart then
+            _pCall(function() _aimbotFOVPart:Destroy() end)
+            _aimbotFOVPart=nil
+        end
     end)
 
-createModule("aimbot","👻","Silent Aim","Пули летят в цель автоматически",
-    2,P.acc3,{"SILENT","INVISIBLE"},"silentAim",function() end,function()
+createModule("aimbot","👻","Silent Aim","Пули летят в цель",
+    2,P.acc3,{"SILENT"},"silentAim",function() end,function()
         _aimbotTarget=nil
     end)
 
--- Aimbot sliders
+-- Слайдеры
 createSlider(tabContents["aimbot"], "FOV Radius", 50, 500, CFG.aimbotFOV, P.acc7, 3, function(v)
     CFG.aimbotFOV = v
     if _aimbotFOVPart then
@@ -2253,7 +2067,7 @@ createSlider(tabContents["aimbot"], "FOV Radius", 50, 500, CFG.aimbotFOV, P.acc7
     end
 end)
 
-createSlider(tabContents["aimbot"], "Smoothness", 1, 50, _mFloor(CFG.aimbotSmooth*100), P.acc7, 4, function(v)
+createSlider(tabContents["aimbot"], "Smoothness", 1, 50, math.floor(CFG.aimbotSmooth*100), P.acc7, 4, function(v)
     CFG.aimbotSmooth = v / 100
 end)
 
@@ -2267,11 +2081,11 @@ end)
 
 createSlider(tabContents["aimbot"], "Walk Speed", 16, 100, CFG.speedValue, P.acc4, 7, function(v)
     CFG.speedValue = v
-    if CFG.speed and _hum then _pCall(function() _hum[_S[28]] = v end) end
+    if CFG.speed and _hum then _pCall(function() _hum.WalkSpeed = v end) end
 end)
 
--- ═══ STATUS BAR ═══
-local SB = _iNew(_S[18])
+-- ═══ СТАТУС-БАР ═══
+local SB = _iNew("Frame")
 SB.Size = _ud2(1,-12,0,54)
 SB.Position = _ud2(0,6,1,-60)
 SB.BackgroundColor3 = P.bgDeep
@@ -2282,7 +2096,7 @@ SB.Parent = MF
 corner(SB, 14)
 stroke(SB, P.bord, 0.5, 0.6)
 
-local statusLabel = _iNew(_S[17])
+local statusLabel = _iNew("TextLabel")
 statusLabel.Size = _ud2(0.58,0,0,20)
 statusLabel.Position = _ud2(0,12,0,6)
 statusLabel.BackgroundTransparency = 1
@@ -2294,7 +2108,7 @@ statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.ZIndex = 6
 statusLabel.Parent = SB
 
-local infoLabel = _iNew(_S[17])
+local infoLabel = _iNew("TextLabel")
 infoLabel.Size = _ud2(0.58,0,0,14)
 infoLabel.Position = _ud2(0,12,0,26)
 infoLabel.BackgroundTransparency = 1
@@ -2306,11 +2120,11 @@ infoLabel.TextXAlignment = Enum.TextXAlignment.Left
 infoLabel.ZIndex = 6
 infoLabel.Parent = SB
 
-local pingLabel = _iNew(_S[17])
+local pingLabel = _iNew("TextLabel")
 pingLabel.Size = _ud2(0,80,0,12)
 pingLabel.Position = _ud2(1,-90,0,6)
 pingLabel.BackgroundTransparency = 1
-pingLabel.Text = "●  " .. _rI(8,35) .. "ms"
+pingLabel.Text = "● 20ms"
 pingLabel.TextColor3 = P.textG
 pingLabel.TextSize = 8
 pingLabel.Font = Enum.Font.GothamMedium
@@ -2318,7 +2132,7 @@ pingLabel.TextXAlignment = Enum.TextXAlignment.Right
 pingLabel.ZIndex = 6
 pingLabel.Parent = SB
 
-local fpsLabel = _iNew(_S[17])
+local fpsLabel = _iNew("TextLabel")
 fpsLabel.Size = _ud2(0,80,0,12)
 fpsLabel.Position = _ud2(1,-90,0,20)
 fpsLabel.BackgroundTransparency = 1
@@ -2330,7 +2144,7 @@ fpsLabel.TextXAlignment = Enum.TextXAlignment.Right
 fpsLabel.ZIndex = 6
 fpsLabel.Parent = SB
 
-local lockLabel = _iNew(_S[17])
+local lockLabel = _iNew("TextLabel")
 lockLabel.Size = _ud2(0,80,0,12)
 lockLabel.Position = _ud2(1,-90,0,34)
 lockLabel.BackgroundTransparency = 1
@@ -2342,10 +2156,10 @@ lockLabel.TextXAlignment = Enum.TextXAlignment.Right
 lockLabel.ZIndex = 6
 lockLabel.Parent = SB
 
--- Active dots row
+-- Точки активных модулей
 local activeDots = {}
 for i = 1, 15 do
-    local dot = _iNew(_S[18])
+    local dot = _iNew("Frame")
     dot.Size = _ud2(0,6,0,6)
     dot.Position = _ud2(0,12+(i-1)*9,0,46)
     dot.BackgroundColor3 = _c3(18,18,32)
@@ -2356,14 +2170,18 @@ for i = 1, 15 do
     activeDots[i] = dot
 end
 
-function updateStatus()
-    local keys = {"infJump","antiRagdoll","noAnim","speed","fly","noclip","esp","godMode",
-                  "fullbright","noFog","bigHead","lowGravity","aimbot","silentAim","hitboxExp","chams","tracers"}
+-- Теперь объявляем updateStatus (больше не forward-declaration нужен)
+updateStatus = function()
+    local keys = {
+        "infJump","antiRagdoll","noAnim","speed","fly","noclip",
+        "esp","godMode","fullbright","noFog","bigHead","lowGravity",
+        "aimbot","silentAim","hitboxExp","chams","tracers"
+    }
     local count = 0
     local activeColors = {}
     for _, k in ipairs(keys) do
         if CFG[k] then
-            count += 1
+            count = count + 1
             for _, md in ipairs(allModuleData) do
                 if md.cfgKey == k then
                     activeColors[#activeColors+1] = md.color
@@ -2391,16 +2209,14 @@ end
 -- Info loop
 _tSpawn(function()
     while SG and SG.Parent do
-        -- Aimbot status
         if _aimbotLocked and _aimbotTarget then
-            lockLabel.Text = "🎯 LOCKED: " .. _aimbotTarget[_S[44]]
-            tw(lockLabel, ti(0.2), {TextColor3=P.acc3}):Play()
+            lockLabel.Text = "🎯 LOCKED: " .. _aimbotTarget.DisplayName
         else
             lockLabel.Text = ""
         end
 
         if _ghostActive then
-            infoLabel.Text = "👻 GHOST · " .. _mFloor(tick()-_ragStart) .. "s · free movement"
+            infoLabel.Text = "👻 GHOST · " .. _mFloor(tick()-_ragStart) .. "s"
             infoLabel.TextColor3 = _c3h((tick()*0.2)%1, 0.35, 1)
         elseif _exitLock then
             infoLabel.Text = "⟳ Stabilizing..."
@@ -2408,17 +2224,16 @@ _tSpawn(function()
         elseif _flying then
             infoLabel.Text = "🕊️ Flying · " .. CFG.flySpeed .. " u/s"
             infoLabel.TextColor3 = P.acc8
-        elseif CFG.hitboxExp then
-            infoLabel.Text = "📦 Hitbox x" .. CFG.hitboxSize
-            infoLabel.TextColor3 = P.acc3
         else
             infoLabel.Text = ""
         end
 
         _pCall(function()
-            pingLabel.Text = "●  " .. _rI(5,48) .. "ms"
+            pingLabel.Text = "● " .. math.random(5,48) .. "ms"
             local dt = RunService.Heartbeat:Wait()
-            fpsLabel.Text = _mFloor(1/dt) .. " FPS"
+            if dt > 0 then
+                fpsLabel.Text = _mFloor(1/dt) .. " FPS"
+            end
         end)
         _tWait(0.1)
     end
@@ -2432,13 +2247,17 @@ MinBtn.MouseButton1Click:Connect(function()
     if minimized then
         tw(MF, _twInfo(0.48,_enumES.Back,_enumED.In), {Size=_ud2(0,460,0,80)}):Play()
         _tDelay(0.06, function()
-            contentFrame.Visible=false tabBar.Visible=false SB.Visible=false
+            contentFrame.Visible=false
+            tabBar.Visible=false
+            SB.Visible=false
         end)
         MinBtn.Text = "◻"
     else
         tw(MF, _twInfo(0.52,_enumES.Back), {Size=_ud2(0,460,0,660)}):Play()
         _tDelay(0.22, function()
-            contentFrame.Visible=true tabBar.Visible=true SB.Visible=true
+            contentFrame.Visible=true
+            tabBar.Visible=true
+            SB.Visible=true
         end)
         MinBtn.Text = "━"
     end
@@ -2446,41 +2265,43 @@ end)
 
 ClsBtn.MouseButton1Click:Connect(function()
     for k, v in pairs(CFG) do if type(v)=="boolean" then CFG[k]=false end end
-    _stopAntiRagdoll() _stopNoAnim() _stopFly() _stopNoclip()
-    _stopESP() _stopGodMode() _stopFullbright() _stopNoFog()
-    _stopLowGravity() _stopSpeed() _stopChams() _stopTracers()
+    _stopAntiRagdoll()
+    _stopNoAnim()
+    _stopFly()
+    _stopNoclip()
+    _stopESP()
+    _stopGodMode()
+    _stopFullbright()
+    _stopNoFog()
+    _stopLowGravity()
+    _stopSpeed()
+    _stopChams()
+    _stopTracers()
     _restoreHitboxes()
     if _aimbotFOVPart then _pCall(function() _aimbotFOVPart:Destroy() end) end
     if _heartbeatC then _heartbeatC:Disconnect() end
 
-    tw(mainStroke, ti(0.12), {Transparency=1}):Play()
-    for _, ch in ipairs(contentFrame:GetDescendants()) do
-        _pCall(function()
-            if ch:IsA(_S[17]) then tw(ch, ti(0.1), {TextTransparency=1}):Play() end
-            if ch:IsA(_S[18]) then tw(ch, ti(0.1), {BackgroundTransparency=1}):Play() end
-            if ch:IsA(_S[20]) then tw(ch, ti(0.1), {TextTransparency=1,BackgroundTransparency=1}):Play() end
-        end)
-    end
-    _tDelay(0.08, function()
-        tw(MF, _twInfo(0.52,_enumES.Back,_enumED.In), {
-            Size=_ud2(0,6,0,6),
-            Position=_ud2(0.5,-3,0.5,-3),
-            BackgroundTransparency=0.3
-        }):Play()
+    tw(MF, _twInfo(0.4,_enumES.Back,_enumED.In), {
+        Size=_ud2(0,6,0,6),
+        Position=_ud2(0.5,-3,0.5,-3),
+    }):Play()
+    _tDelay(0.45, function()
+        tw(MF, ti(0.15), {BackgroundTransparency=1}):Play()
     end)
-    _tDelay(0.42, function() tw(MF, ti(0.15), {BackgroundTransparency=1}):Play() end)
-    _tDelay(0.6, function() _pCall(function() SG:Destroy() end) end)
+    _tDelay(0.65, function()
+        _pCall(function() SG:Destroy() end)
+    end)
 end)
 
--- ═══ LIVE ANIMATIONS ═══
+-- ═══ АНИМАЦИИ ═══
 
--- Border rainbow
+-- Радужная рамка
 _tSpawn(function()
-    local hue = _rF(0,1)
+    local hue = 0
     while SG and SG.Parent do
         hue = (hue+0.001)%1
         local ac = 0
-        for k, v in pairs(CFG) do if type(v)=="boolean" and v then ac+=1 end end
+        for _, v in pairs(CFG) do if type(v)=="boolean" and v then ac=ac+1 end end
         local t = tick()
         if ac > 0 then
             mainStroke.Color = _c3h(hue, _mClamp(0.35+ac*0.04,0,0.85), _mClamp(0.65+ac*0.02,0,1))
@@ -2496,19 +2317,15 @@ _tSpawn(function()
             mainStroke.Color = P.bord
             mainStroke.Transparency = 0.55
             mainStroke.Thickness = 1
-            _pCall(function()
-                for _, ring in ipairs(logoRings) do ring.BackgroundColor3 = P.acc1 end
-                logoGlow.BackgroundColor3 = P.acc1
-            end)
         end
         _tWait(0.02)
     end
 end)
 
--- Aurora float
+-- Аврора
 _tSpawn(function()
     local phases = {}
-    for i=1,#auroraData do phases[i]=_rF(0,_mPi*2) end
+    for i=1,#auroraData do phases[i]=math.random()*_mPi*2 end
     while SG and SG.Parent do
         local t = tick()
         for i, o in ipairs(auroraOrbs) do
@@ -2518,25 +2335,25 @@ _tSpawn(function()
                 local ox = _mSin(t*(0.1+i*0.04)+ph)*16
                 local oy = _mCos(t*(0.13+i*0.03)+ph*0.7)*13
                 o.Position = _ud2(od[1].X.Scale, od[1].X.Offset+ox, od[1].Y.Scale, od[1].Y.Offset+oy)
-                o.BackgroundTransparency = od[4]+_mSin(t*(0.28+i*0.05))*0.01
+                o.BackgroundTransparency = od[4] + _mSin(t*(0.28+i*0.05))*0.01
             end)
         end
         _tWait(0.025)
     end
 end)
 
--- Logo pulse
+-- Пульс лого
 _tSpawn(function()
     while SG and SG.Parent do
-        local ac=0
-        for k,v in pairs(CFG) do if type(v)=="boolean" and v then ac+=1 end end
-        if ac>0 then
-            for i,ring in ipairs(logoRings) do
+        local ac = 0
+        for _, v in pairs(CFG) do if type(v)=="boolean" and v then ac=ac+1 end end
+        if ac > 0 then
+            for i, ring in ipairs(logoRings) do
                 _pCall(function()
-                    local rd=ringDat[i]
+                    local rd = ringDat[i]
                     tw(ring, _twInfo(2,_enumES.Sine,_enumED.InOut), {
-                        BackgroundTransparency=rd[2]-0.06,
-                        Size=_ud2(0,rd[1]+5,0,rd[1]+5),
+                        BackgroundTransparency = rd[2]-0.06,
+                        Size = _ud2(0,rd[1]+5,0,rd[1]+5),
                     }):Play()
                 end)
             end
@@ -2547,12 +2364,12 @@ _tSpawn(function()
             end)
             _tWait(2)
             if not (SG and SG.Parent) then return end
-            for i,ring in ipairs(logoRings) do
+            for i, ring in ipairs(logoRings) do
                 _pCall(function()
-                    local rd=ringDat[i]
+                    local rd = ringDat[i]
                     tw(ring, _twInfo(2,_enumES.Sine,_enumED.InOut), {
-                        BackgroundTransparency=rd[2],
-                        Size=_ud2(0,rd[1],0,rd[1]),
+                        BackgroundTransparency = rd[2],
+                        Size = _ud2(0,rd[1],0,rd[1]),
                     }):Play()
                 end)
             end
@@ -2562,23 +2379,25 @@ _tSpawn(function()
                 }):Play()
             end)
             _tWait(2)
-        else _tWait(0.5) end
+        else
+            _tWait(0.5)
+        end
     end
 end)
 
--- Active dots pulse
+-- Пульс точек
 _tSpawn(function()
     while SG and SG.Parent do
-        local count=0
-        for k,v in pairs(CFG) do if type(v)=="boolean" and v then count+=1 end end
-        for i=1,_mMin(count,15) do
+        local count = 0
+        for _, v in pairs(CFG) do if type(v)=="boolean" and v then count=count+1 end end
+        for i = 1, _mMin(count, 15) do
             _pCall(function()
                 tw(activeDots[i], _twInfo(0.7,_enumES.Sine,_enumED.InOut), {Size=_ud2(0,8,0,8)}):Play()
             end)
         end
         _tWait(0.7)
         if not (SG and SG.Parent) then return end
-        for i=1,15 do
+        for i = 1, 15 do
             _pCall(function()
                 tw(activeDots[i], _twInfo(0.7,_enumES.Sine,_enumED.InOut), {Size=_ud2(0,6,0,6)}):Play()
             end)
@@ -2587,23 +2406,17 @@ _tSpawn(function()
     end
 end)
 
--- ═══ CINEMATIC OPEN ═══
+-- ═══ АНИМАЦИЯ ОТКРЫТИЯ ═══
 MF.BackgroundTransparency = 1
-contentFrame.Visible=false tabBar.Visible=false SB.Visible=false
+contentFrame.Visible=false
+tabBar.Visible=false
+SB.Visible=false
 mainStroke.Transparency = 1
-HD.BackgroundTransparency = 1
-HDP.BackgroundTransparency = 1
-for _,orb in ipairs(auroraOrbs) do orb.BackgroundTransparency=1 end
-for _,child in ipairs(HD:GetDescendants()) do
-    _pCall(function()
-        if child:IsA(_S[17]) or child:IsA(_S[20]) then child.TextTransparency=1 end
-        if child:IsA(_S[18]) then child.BackgroundTransparency=1 end
-    end)
-end
 
 _tDelay(0.05, function()
     MF.Size = _ud2(0,6,0,6)
     MF.Position = _ud2(0.5,-3,0.5,-3)
+
     tw(MF, ti(0.1), {BackgroundTransparency=0}):Play()
     tw(mainStroke, ti(0.1), {Transparency=0.1}):Play()
     _tWait(0.08)
@@ -2618,9 +2431,9 @@ _tDelay(0.05, function()
         Size=_ud2(0,460,0,660),
         Position=_ud2(0.5,-230,0.5,-330),
     }):Play()
-    _tWait(0.18)
+    _tWait(0.25)
 
-    for i,orb in ipairs(auroraOrbs) do
+    for i, orb in ipairs(auroraOrbs) do
         _tDelay(i*0.025, function()
             tw(orb, _twInfo(0.65,_enumES.Quint), {
                 BackgroundTransparency=auroraData[i][4]
@@ -2628,104 +2441,57 @@ _tDelay(0.05, function()
         end)
     end
 
-    _tDelay(0.1, function()
-        tw(HD, ti(0.3), {BackgroundTransparency=0.02}):Play()
-        tw(HDP, ti(0.3), {BackgroundTransparency=0.02}):Play()
+    _tDelay(0.15, function()
+        tabBar.Visible = true
+        tabBar.BackgroundTransparency = 1
+        tw(tabBar, ti(0.35), {BackgroundTransparency=0.25}):Play()
 
-        local delay=0
-        for _,child in ipairs(HD:GetDescendants()) do
-            _pCall(function()
-                delay=delay+0.008
-                if child:IsA(_S[17]) then
-                    _tDelay(delay, function() tw(child, ti(0.4), {TextTransparency=0}):Play() end)
+        for _, btn in pairs(tabButtons) do
+            btn.BackgroundTransparency = 1
+            tw(btn, ti(0.35), {BackgroundTransparency=0.55}):Play()
+            for _, desc in ipairs(btn:GetChildren()) do
+                if desc:IsA("TextLabel") then
+                    desc.TextTransparency = 1
+                    tw(desc, ti(0.4), {TextTransparency=0}):Play()
                 end
-                if child:IsA(_S[20]) then
-                    _tDelay(delay, function() tw(child, ti(0.4), {TextTransparency=0,BackgroundTransparency=0.5}):Play() end)
-                end
-                if child:IsA(_S[18]) and child~=HDP then
-                    _tDelay(delay, function()
-                        local target=0.85
-                        if child==logoRings[1] then target=ringDat[1][2]
-                        elseif child==logoRings[2] then target=ringDat[2][2]
-                        elseif child==logoRings[3] then target=ringDat[3][2]
-                        elseif child==logoGlow then target=0.3 end
-                        tw(child, ti(0.45), {BackgroundTransparency=target}):Play()
-                    end)
-                end
-            end)
+            end
         end
     end)
 
-    _tWait(0.28)
+    _tDelay(0.28, function()
+        contentFrame.Visible = true
 
-    tabBar.Visible=true
-    tabBar.BackgroundTransparency=1
-    tw(tabBar, ti(0.35), {BackgroundTransparency=0.25}):Play()
-    for _,btn in pairs(tabButtons) do
-        btn.BackgroundTransparency=1
-        tw(btn, ti(0.35), {BackgroundTransparency=0.55}):Play()
-        for _,desc in ipairs(btn:GetChildren()) do
-            if desc:IsA(_S[17]) then
-                desc.TextTransparency=1
-                tw(desc, ti(0.4), {TextTransparency=0}):Play()
-            end
+        SB.Visible = true
+        SB.BackgroundTransparency = 1
+        tw(SB, ti(0.45), {BackgroundTransparency=0.08}):Play()
+        for _, child in ipairs(SB:GetChildren()) do
+            _pCall(function()
+                if child:IsA("TextLabel") then
+                    child.TextTransparency = 1
+                    tw(child, ti(0.45), {TextTransparency=0}):Play()
+                end
+            end)
         end
-    end
 
-    _tWait(0.12)
-    contentFrame.Visible=true
-
-    SB.Visible=true
-    SB.BackgroundTransparency=1
-    tw(SB, ti(0.45), {BackgroundTransparency=0.08}):Play()
-    for _,child in ipairs(SB:GetChildren()) do
-        _pCall(function()
-            if child:IsA(_S[17]) then child.TextTransparency=1 tw(child,ti(0.45),{TextTransparency=0}):Play() end
-        end)
-    end
-
-    -- Cascade cards
-    local visibleScroll = tabContents[currentTab]
-    if visibleScroll then
-        local cIdx=0
-        for _,child in ipairs(visibleScroll:GetChildren()) do
-            if child:IsA(_S[18]) then
-                cIdx+=1
-                local idx=cIdx
-                child.BackgroundTransparency=1
-                for _,desc in ipairs(child:GetDescendants()) do
-                    _pCall(function()
-                        if desc:IsA(_S[17]) then desc.TextTransparency=1 end
-                        if desc:IsA(_S[18]) then desc.BackgroundTransparency=1 end
-                        if desc:IsA(_S[20]) then desc.TextTransparency=1 desc.BackgroundTransparency=1 end
+        -- Карточки
+        local visibleScroll = tabContents[currentTab]
+        if visibleScroll then
+            local cIdx = 0
+            for _, child in ipairs(visibleScroll:GetChildren()) do
+                if child:IsA("Frame") then
+                    cIdx = cIdx + 1
+                    local idx = cIdx
+                    child.BackgroundTransparency = 1
+                    _tDelay(idx*0.07, function()
+                        tw(child, _twInfo(0.48,_enumES.Quint), {BackgroundTransparency=0.04}):Play()
                     end)
                 end
-                _tDelay(idx*0.07, function()
-                    tw(child, _twInfo(0.48,_enumES.Quint), {BackgroundTransparency=0.04}):Play()
-                    _tDelay(0.07, function()
-                        for _,desc in ipairs(child:GetDescendants()) do
-                            _pCall(function()
-                                if desc:IsA(_S[17]) then tw(desc,ti(0.38),{TextTransparency=0}):Play() end
-                                if desc:IsA(_S[18]) then
-                                    local ft=0.85
-                                    if desc.Size.X.Offset<=5 then ft=0.2
-                                    elseif desc.Size.X.Offset<=22 then ft=0.45
-                                    elseif desc.Size.X.Offset<=55 then ft=0.7 end
-                                    tw(desc,ti(0.38),{BackgroundTransparency=ft}):Play()
-                                end
-                                if desc:IsA(_S[20]) then
-                                    tw(desc,ti(0.38),{TextTransparency=0,BackgroundTransparency=0.4}):Play()
-                                end
-                            end)
-                        end
-                    end)
-                end)
             end
         end
-    end
 
-    _tDelay(0.85, function()
-        tw(mainStroke, ti(0.5), {Transparency=0.5}):Play()
+        _tDelay(0.6, function()
+            tw(mainStroke, ti(0.5), {Transparency=0.5}):Play()
+        end)
     end)
 end)
 
