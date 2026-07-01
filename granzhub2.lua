@@ -1,20 +1,20 @@
 --=====================================================================
 -- GRANZ HUB | v1.0
--- Author : Meister
+-- Author : Granz1
 -- Toggle : INSERT
 --=====================================================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 -- Load UI library
-local MeisterUI
+local GranzHub
 local ok, err = pcall(function()
     MeisterUI = loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/ccdushii/DASDASDASDASDA/refs/heads/main/AAAAA"
+        "https://raw.githubusercontent.com/Granz1ch/GranzHub/refs/heads/main/Library.lua"
     ))()
 end)
 if not ok then
-    error("[HUB] Failed to load MeisterUI: " .. tostring(err))
+    error("[HUB] Failed to load GranzHub: " .. tostring(err))
 end
 
 --=====================================================================
